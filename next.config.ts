@@ -1,15 +1,10 @@
 import type { NextConfig } from "next";
-import { resolve } from "path";
 
 const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
 
 const nextConfig: NextConfig = {
- 
   async redirects() {
     return [
-      // Browser navigations to the old Express HTML routes → Next.js pages
-      // `sec-fetch-mode: navigate` is set by browsers for URL/link navigation;
-      // fetch() API calls use `cors` so POST /salon-admin/login still hits Express.
       {
         source: "/salon-admin/login",
         has: [{ type: "header", key: "sec-fetch-mode", value: "navigate" }],

@@ -4,11 +4,7 @@ import { resolve } from "path";
 const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    resolveAlias: {
-      tailwindcss: resolve("node_modules/tailwindcss"),
-    },
-  },
+ 
   async redirects() {
     return [
       // Browser navigations to the old Express HTML routes → Next.js pages

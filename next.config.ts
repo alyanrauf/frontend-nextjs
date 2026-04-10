@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
 
+console.log("🔧 [next.config] BACKEND_URL =", backendUrl);
+
 const nextConfig: NextConfig = {
   async redirects() {
     return [

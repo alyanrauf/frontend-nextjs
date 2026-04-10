@@ -92,7 +92,7 @@ Both are `httpOnly` — JS cannot read them. Auth state is validated server-side
 ### Login Flow (Tenant)
 1. `app/(auth)/login/page.tsx` POSTs `{email, password}` to `/salon-admin/login`
 2. Express validates → sets `tenantToken` cookie → returns `{success: true}`
-3. Frontend does `router.replace("/dashboard")`
+3. Frontend does `router.replace("/dashboard")`  this router.replace couses iss
 4. On 401 anywhere in the app, `lib/api.ts` does `window.location.href = "/login"`
 
 ### Login Flow (Super Admin)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchBranches,
@@ -23,7 +23,7 @@ import { StaffDrawer } from "@/components/settings/StaffDrawer";
 import { RoleDrawer } from "@/components/settings/RoleDrawer";
 
 import { ModalShell } from "@/components/ui/ModalShell";
-type SettingsTab = "general" | "branches" | "staff" | "roles" | "timings" | "integrations";
+type SettingsTab = "general" | "branches" | "staff" | "roles" | "timings" | "integrations" | "account";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "⚙️ General" },
@@ -32,6 +32,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: "roles", label: "🏷️ Roles" },
   { id: "timings", label: "🕐 Salon Hours" },
   { id: "integrations", label: "🔗 Integrations" },
+  { id: "account", label: "🔑 Account" },
 ];
 
 export default function SettingsPage() {
@@ -85,6 +86,7 @@ export default function SettingsPage() {
       {activeTab === "roles" && <RolesTab />}
       {activeTab === "timings" && <TimingsTab />}
       {activeTab === "integrations" && <IntegrationsTab />}
+      {activeTab === "account" && <AccountTab />}
     </div>
   );
 }
@@ -112,12 +114,9 @@ function GeneralTab() {
   }
 
   const tenantId = general?.tenantId ?? "…";
-  const backendOrigin =
-    typeof window !== "undefined"
-      ? window.location.origin.replace(":3001", ":3000")
-      : "http://localhost:3000";
-  
-  const widgetUrl = `${backendOrigin}/widget/${tenantId}/widget.js`;
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const widgetUrl = `${origin}/widget/${tenantId}/widget.js`;
   const scriptAttrs = [
     `src="${widgetUrl}"`,
     botName.trim() ? `data-bot-name="${botName.trim()}"` : null,
@@ -1088,9 +1087,7 @@ function IntegrationsTab() {
   });
 
   const backendOrigin =
-    typeof window !== "undefined"
-      ? window.location.origin.replace(":3001", ":3000")
-      : "http://localhost:3000";
+    typeof window !== "undefined" ? window.location.origin : "";
 
   const [wa, setWa] = useState({ phone_number_id: "", access_token: "", verify_token: "" });
   const [ig, setIg] = useState({ page_access_token: "", verify_token: "" });
@@ -1218,6 +1215,65 @@ function IntegrationsTab() {
       <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtn}>
         {saveMutation.isPending ? "Saving…" : "Save Integrations"}
       </button>
+    </div>
+  );
+}
+
+/* ─── Account Tab ─── */
+function AccountTab() {
+  const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (form.newPassword !== form.confirmPassword) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    if (form.newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    try {
+      await api.put("/salon-admin/api/change-password", {
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword,
+      });
+      toast.success("Password changed successfully");
+      setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to change password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: "420px" }}>
+      <h3 style={{ fontWeight: 600, marginBottom: "4px" }}>Change Password</h3>
+      <p style={{ fontSize: "13px", color: "var(--color-sub)", marginBottom: "20px" }}>
+        Update your login password. You will need your current password to confirm.
+      </p>
+      <form onSubmit={handleSubmit}>
+        {(["currentPassword", "newPassword", "confirmPassword"] as const).map((field) => (
+          <div key={field} style={{ marginBottom: "14px" }}>
+            <label style={{ display: "block", fontSize: "13px", fontWeight: 500, marginBottom: "4px", color: "var(--color-sub)" }}>
+              {field === "currentPassword" ? "Current Password" : field === "newPassword" ? "New Password" : "Confirm New Password"}
+            </label>
+            <input
+              type="password"
+              required
+              value={form[field]}
+              onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+              style={{ width: "100%", padding: "9px 12px", border: "1.5px solid var(--color-border)", borderRadius: "8px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+        ))}
+        <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>
+          {loading ? "Saving…" : "Update Password"}
+        </button>
+      </form>
     </div>
   );
 }

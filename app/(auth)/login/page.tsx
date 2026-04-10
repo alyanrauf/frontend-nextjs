@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Forgot-password state
+  const [showForgot, setShowForgot] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,9 +26,10 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
-        router.replace("/dashboard");
+        window.location.href = "/dashboard";
       } else {
-        setError("Invalid email or password.");
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || "Invalid email or password.");
       }
     } catch {
       setError("Network error. Please try again.");
@@ -32,6 +37,33 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
+
+  async function handleResetRequest(e: React.FormEvent) {
+    e.preventDefault();
+    setResetLoading(true);
+    try {
+      await fetch("/salon-admin/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      setResetSent(true);
+    } catch {
+      setResetSent(true); // still show success to avoid leaking info
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 14px",
+    border: "1.5px solid #e5e7eb",
+    borderRadius: "8px",
+    fontSize: "14px",
+    outline: "none",
+    boxSizing: "border-box" as const,
+  };
 
   return (
     <div
@@ -69,101 +101,145 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: "32px 40px" }}>
-          {error && (
-            <div
-              style={{
-                background: "#fee2e2",
-                color: "#dc2626",
-                padding: "10px 14px",
-                borderRadius: "8px",
-                fontSize: "13px",
-                marginBottom: "20px",
-              }}
-            >
-              {error}
+        {!showForgot ? (
+          <form onSubmit={handleSubmit} style={{ padding: "32px 40px" }}>
+            {error && (
+              <div
+                style={{
+                  background: "#fee2e2",
+                  color: "#dc2626",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  marginBottom: "20px",
+                }}
+              >
+                {error}
+              </div>
+            )}
+
+            <div style={{ marginBottom: "18px" }}>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = "#b5484b")}
+                onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+              />
             </div>
-          )}
 
-          <div style={{ marginBottom: "18px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 500,
-                color: "#374151",
-                marginBottom: "6px",
-              }}
-            >
-              Email
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+            <div style={{ marginBottom: "8px" }}>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = "#b5484b")}
+                onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
+              />
+            </div>
+
+            <div style={{ textAlign: "right", marginBottom: "20px" }}>
+              <button
+                type="button"
+                onClick={() => setShowForgot(true)}
+                style={{ background: "none", border: "none", color: "#b5484b", fontSize: "12px", cursor: "pointer", padding: 0 }}
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
               style={{
                 width: "100%",
-                padding: "10px 14px",
-                border: "1.5px solid #e5e7eb",
+                padding: "12px",
+                background: loading ? "#9ca3af" : "linear-gradient(135deg, #b5484b 0%, #6b3057 100%)",
+                color: "#fff",
+                border: "none",
                 borderRadius: "8px",
-                fontSize: "14px",
-                outline: "none",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = "#b5484b")}
-              onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-            />
-          </div>
-
-          <div style={{ marginBottom: "24px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 500,
-                color: "#374151",
-                marginBottom: "6px",
+                fontSize: "15px",
+                fontWeight: 600,
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "opacity 0.2s",
               }}
             >
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                border: "1.5px solid #e5e7eb",
-                borderRadius: "8px",
-                fontSize: "14px",
-                outline: "none",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = "#b5484b")}
-              onBlur={(e) => (e.target.style.borderColor = "#e5e7eb")}
-            />
+              {loading ? "Signing in…" : "Login"}
+            </button>
+          </form>
+        ) : (
+          <div style={{ padding: "32px 40px" }}>
+            {resetSent ? (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "36px", marginBottom: "12px" }}>📬</div>
+                <p style={{ fontWeight: 600, marginBottom: "8px" }}>Request sent</p>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "24px" }}>
+                  Your password reset request has been sent to the administrator. They will set a new password for you.
+                </p>
+                <button
+                  onClick={() => { setShowForgot(false); setResetSent(false); setResetEmail(""); }}
+                  style={{ background: "none", border: "none", color: "#b5484b", fontSize: "13px", cursor: "pointer", textDecoration: "underline" }}
+                >
+                  Back to login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleResetRequest}>
+                <p style={{ fontWeight: 600, marginBottom: "4px" }}>Reset Password</p>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginBottom: "20px" }}>
+                  Enter your email and we&apos;ll notify the administrator to reset your password.
+                </p>
+                <div style={{ marginBottom: "18px" }}>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: resetLoading ? "#9ca3af" : "linear-gradient(135deg, #b5484b 0%, #6b3057 100%)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                    cursor: resetLoading ? "not-allowed" : "pointer",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {resetLoading ? "Sending…" : "Send Reset Request"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(false)}
+                  style={{ background: "none", border: "none", color: "#6b7280", fontSize: "12px", cursor: "pointer", display: "block", margin: "0 auto" }}
+                >
+                  Back to login
+                </button>
+              </form>
+            )}
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "12px",
-              background: loading ? "#9ca3af" : "linear-gradient(135deg, #b5484b 0%, #6b3057 100%)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: "15px",
-              fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-              transition: "opacity 0.2s",
-            }}
-          >
-            {loading ? "Signing in…" : "Login"}
-          </button>
-        </form>
+        )}
       </div>
     </div>
   );

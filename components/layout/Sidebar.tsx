@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchBranches, QK } from "@/lib/queries";
@@ -113,7 +113,6 @@ const SYSTEM_NAV: NavItem[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [bookingsOpen, setBookingsOpen] = useState(
     pathname.startsWith("/bookings"),
   );
@@ -127,7 +126,7 @@ export default function Sidebar() {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   function navigate(href: string) {
-    router.push(href);
+    window.location.href = href;
   }
 
   return (

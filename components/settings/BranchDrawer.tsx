@@ -90,7 +90,7 @@ export function BranchDrawer({ open, onClose, editing }: BranchDrawerProps) {
     >
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         {/* Branch Number */}
-        <div>
+        {/* <div>
           <label style={labelStyle}>
             Branch Number
           </label>
@@ -103,7 +103,7 @@ export function BranchDrawer({ open, onClose, editing }: BranchDrawerProps) {
             onFocus={(e) => e.target.style.borderColor = "#B5484B"}
             onBlur={(e) => e.target.style.borderColor = "#E8E3E0"}
           />
-        </div>
+        </div> */}
 
         {/* Branch Name */}
         <div>

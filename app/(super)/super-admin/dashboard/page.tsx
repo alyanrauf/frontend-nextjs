@@ -10,9 +10,19 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useState } from "react";
 
+interface ResetRequest {
+  tenantId: string;
+  email: string;
+  salonName: string;
+  ownerName: string;
+  requestedAt: string;
+}
+
 export default function SuperDashboardPage() {
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
+  const [setPasswordFor, setSetPasswordFor] = useState<{ id: string; name: string } | null>(null);
+  const [showChangePwd, setShowChangePwd] = useState(false);
 
   // ✅ Track loading states
   const { 
@@ -25,14 +35,24 @@ export default function SuperDashboardPage() {
     staleTime: 0,
   });
 
-  const { 
-    data: stats, 
+  const {
+    data: stats,
     isLoading: statsLoading,
-    refetch: refetchStats 
+    refetch: refetchStats
   } = useQuery({
     queryKey: ["superStats"],
     queryFn: fetchSuperStats,
     staleTime: 0,
+  });
+
+  const { data: resetRequests = [], refetch: refetchResets } = useQuery<ResetRequest[]>({
+    queryKey: ["resetRequests"],
+    queryFn: async () => {
+      const res = await fetch("/super-admin/api/reset-requests", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 30_000,
   });
 
   const toggleMutation = useMutation({
@@ -82,11 +102,12 @@ export default function SuperDashboardPage() {
           <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#1e2a5e", margin: 0 }}>
             🏢 Super Admin Portal
           </h1>
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <button
               onClick={() => {
                 refetchTenants();
                 refetchStats();
+                refetchResets();
                 toast.info("Refreshing data...");
               }}
               disabled={isLoading}
@@ -103,6 +124,21 @@ export default function SuperDashboardPage() {
               }}
             >
               {isLoading ? "Loading..." : "🔄 Refresh"}
+            </button>
+            <button
+              onClick={() => setShowChangePwd(true)}
+              style={{
+                background: "#f0fdf4",
+                color: "#166534",
+                padding: "8px 16px",
+                border: "1px solid #bbf7d0",
+                borderRadius: "40px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              🔑 Change Password
             </button>
             <a
               href="/super-admin/logout"
@@ -149,6 +185,40 @@ export default function SuperDashboardPage() {
             </>
           )}
         </div>
+
+        {/* Password Reset Requests */}
+        {resetRequests.length > 0 && (
+          <div style={{ background: "#fff", borderRadius: "20px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)", marginBottom: "28px", overflow: "hidden" }}>
+            <div style={{ padding: "20px 28px", borderBottom: "1px solid #eef2f8", display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "18px" }}>🔔</span>
+              <h3 style={{ fontWeight: 600, fontSize: "16px", color: "#0b2b44", margin: 0 }}>
+                Password Reset Requests
+              </h3>
+              <span style={{ background: "#fee2e2", color: "#b91c1c", borderRadius: "20px", padding: "2px 8px", fontSize: "11px", fontWeight: 700 }}>
+                {resetRequests.length}
+              </span>
+            </div>
+            <div style={{ padding: "12px 28px" }}>
+              {resetRequests.map((r) => (
+                <div key={r.tenantId} style={{ display: "flex", alignItems: "center", gap: "16px", padding: "10px 0", borderBottom: "1px solid #f1f5f9" }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 600, fontSize: "13px", margin: 0 }}>{r.salonName}</p>
+                    <p style={{ fontSize: "12px", color: "#5b6e8c", margin: "2px 0 0" }}>{r.ownerName} · {r.email}</p>
+                  </div>
+                  <p style={{ fontSize: "11px", color: "#94a3b8", whiteSpace: "nowrap" }}>
+                    {new Date(r.requestedAt).toLocaleString()}
+                  </p>
+                  <button
+                    onClick={() => setSetPasswordFor({ id: r.tenantId, name: r.salonName })}
+                    style={{ background: "#1f3a6b", color: "#fff", border: "none", padding: "6px 16px", borderRadius: "30px", cursor: "pointer", fontSize: "12px", fontWeight: 500, whiteSpace: "nowrap" }}
+                  >
+                    Set Password
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div style={{ background: "#fff", borderRadius: "20px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)", overflow: "hidden" }}>
@@ -205,7 +275,7 @@ export default function SuperDashboardPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
                 <thead>
                   <tr>
-                    {["ID", "Salon Name", "Owner", "Email", "Phone", "Status", "Actions"].map(h => (
+                    {["ID", "Salon Name", "Owner", "Email", "Phone", "Status", "Actions", "Password"].map(h => (
                       <th key={h} style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#2c4c7c", background: "#fafcff", borderBottom: "1px solid #ecf3fa" }}>
                         {h}
                       </th>
@@ -241,6 +311,23 @@ export default function SuperDashboardPage() {
                             {t.status === "active" ? "Suspend" : "Activate"}
                           </button>
                         </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <button
+                            onClick={() => setSetPasswordFor({ id: tenantId, name: t.salon_name })}
+                            style={{
+                              background: "#f0fdf4",
+                              color: "#166534",
+                              border: "1px solid #bbf7d0",
+                              padding: "5px 12px",
+                              borderRadius: "30px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: 500,
+                            }}
+                          >
+                            Set Password
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -256,14 +343,27 @@ export default function SuperDashboardPage() {
       </div>
 
       {showModal && (
-        <CreateTenantModal 
-          onClose={() => setShowModal(false)} 
-          onCreated={() => { 
-            refetchTenants(); 
-            refetchStats(); 
-            setShowModal(false); 
-          }} 
+        <CreateTenantModal
+          onClose={() => setShowModal(false)}
+          onCreated={() => {
+            refetchTenants();
+            refetchStats();
+            setShowModal(false);
+          }}
         />
+      )}
+
+      {setPasswordFor && (
+        <SetPasswordModal
+          tenantId={setPasswordFor.id}
+          salonName={setPasswordFor.name}
+          onClose={() => setSetPasswordFor(null)}
+          onSaved={() => { refetchResets(); setSetPasswordFor(null); }}
+        />
+      )}
+
+      {showChangePwd && (
+        <ChangeSuperPasswordModal onClose={() => setShowChangePwd(false)} />
       )}
     </div>
   );
@@ -329,6 +429,102 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
             style={{ padding: "10px 24px", background: "#1f3a6b", color: "#fff", border: "none", borderRadius: "40px", cursor: "pointer", fontWeight: 500, fontSize: "13px" }}
           >
             {loading ? "Creating…" : "Create Salon"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SetPasswordModal({ tenantId, salonName, onClose, onSaved }: { tenantId: string; salonName: string; onClose: () => void; onSaved: () => void }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSave() {
+    if (newPassword.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    if (newPassword !== confirm) { toast.error("Passwords do not match"); return; }
+    setLoading(true);
+    try {
+      await api.post(`/super-admin/api/tenants/${encodeURIComponent(tenantId)}/set-password`, { newPassword });
+      toast.success(`Password updated for ${salonName}`);
+      onSaved();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to set password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputStyle = { width: "100%", padding: "10px 14px", border: "1.5px solid #e2e8f0", borderRadius: "12px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "#fff", borderRadius: "24px", width: "90%", maxWidth: "420px", padding: "28px 32px", boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
+        <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "6px", color: "#0f2e4a" }}>🔑 Set New Password</h3>
+        <p style={{ fontSize: "13px", color: "#5b6e8c", marginBottom: "20px" }}>{salonName}</p>
+        <div style={{ marginBottom: "14px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: 500, color: "#2c3e66", marginBottom: "6px" }}>New Password</label>
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ marginBottom: "20px" }}>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: 500, color: "#2c3e66", marginBottom: "6px" }}>Confirm Password</label>
+          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", background: "#f1f3f5", border: "none", borderRadius: "40px", cursor: "pointer", fontWeight: 500, fontSize: "13px" }}>Cancel</button>
+          <button onClick={handleSave} disabled={loading} style={{ padding: "10px 24px", background: "#1f3a6b", color: "#fff", border: "none", borderRadius: "40px", cursor: "pointer", fontWeight: 500, fontSize: "13px" }}>
+            {loading ? "Saving…" : "Set Password"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangeSuperPasswordModal({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [loading, setLoading] = useState(false);
+
+  async function handleSave() {
+    if (form.newPassword.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    if (form.newPassword !== form.confirmPassword) { toast.error("Passwords do not match"); return; }
+    setLoading(true);
+    try {
+      await api.put("/super-admin/api/change-password", {
+        currentPassword: form.currentPassword,
+        newPassword: form.newPassword,
+      });
+      toast.success("Password changed successfully");
+      onClose();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to change password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const inputStyle = { width: "100%", padding: "10px 14px", border: "1.5px solid #e2e8f0", borderRadius: "12px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "#fff", borderRadius: "24px", width: "90%", maxWidth: "420px", padding: "28px 32px", boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
+        <h3 style={{ fontSize: "18px", fontWeight: 600, marginBottom: "6px", color: "#0f2e4a" }}>🔑 Change Your Password</h3>
+        <p style={{ fontSize: "13px", color: "#5b6e8c", marginBottom: "20px" }}>Super Admin account</p>
+        {(["currentPassword", "newPassword", "confirmPassword"] as const).map((field) => (
+          <div key={field} style={{ marginBottom: "14px" }}>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 500, color: "#2c3e66", marginBottom: "6px" }}>
+              {field === "currentPassword" ? "Current Password" : field === "newPassword" ? "New Password" : "Confirm New Password"}
+            </label>
+            <input type="password" value={form[field]} onChange={(e) => setForm(f => ({ ...f, [field]: e.target.value }))} style={inputStyle} />
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
+          <button onClick={onClose} style={{ padding: "10px 20px", background: "#f1f3f5", border: "none", borderRadius: "40px", cursor: "pointer", fontWeight: 500, fontSize: "13px" }}>Cancel</button>
+          <button onClick={handleSave} disabled={loading} style={{ padding: "10px 24px", background: "#1f3a6b", color: "#fff", border: "none", borderRadius: "40px", cursor: "pointer", fontWeight: 500, fontSize: "13px" }}>
+            {loading ? "Saving…" : "Update Password"}
           </button>
         </div>
       </div>

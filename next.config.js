@@ -39,6 +39,10 @@ const nextConfig = {
                 source: "/salon-config/:path*",
                 destination: `${backendUrl}/salon-config/:path*`,
             },
+            {
+                source: "/webhooks/:path*",
+                destination: `${backendUrl}/webhooks/:path*`,
+            },
         ];
     },
 };

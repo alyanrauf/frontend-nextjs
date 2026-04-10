@@ -14,28 +14,44 @@ export default function SuperDashboardPage() {
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
 
-  const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
+  // Get refetch functions from useQuery
+  const { 
+    data: tenants, 
+    isLoading, 
+    refetch: refetchTenants 
+  } = useQuery<Tenant[]>({
     queryKey: ["tenants"],
     queryFn: fetchTenants,
-    staleTime: 60_000,
+    staleTime: 0, // Data is considered stale immediately
   });
 
-  const { data: stats } = useQuery({
+  const { 
+    data: stats, 
+    refetch: refetchStats 
+  } = useQuery({
     queryKey: ["superStats"],
     queryFn: fetchSuperStats,
-    staleTime: 60_000,
+    staleTime: 0,
   });
 
+  // ✅ Mutation for activating/suspending salons
   const toggleMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/super-admin/api/tenants/${encodeURIComponent(id)}/status`, {
         status: status === "active" ? "suspended" : "active",
       }),
-    onSuccess: () => { toast.success("Status updated"); qc.invalidateQueries({ queryKey: ["tenants"] }); },
+    onSuccess: (_, variables) => { 
+      const newStatus = variables.status === "active" ? "suspended" : "active";
+      toast.success(`Salon ${newStatus === "active" ? "activated" : "suspended"} successfully!`);
+      // ✅ Force refetch after status change
+      refetchTenants();
+      refetchStats();
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const activeTenants = tenants.filter(t => t.status === "active").length;
+  const tenantsArray = Array.isArray(tenants) ? tenants : [];
+  const activeTenants = tenantsArray.filter(t => t.status === "active").length;
 
   return (
     <div
@@ -65,27 +81,48 @@ export default function SuperDashboardPage() {
           <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#1e2a5e", margin: 0 }}>
             🏢 Super Admin Portal
           </h1>
-          <a
-            href="/super-admin/logout"
-            style={{
-              background: "#f1f3f5",
-              color: "#c0392b",
-              padding: "8px 20px",
-              textDecoration: "none",
-              borderRadius: "40px",
-              fontWeight: 500,
-              fontSize: "13px",
-              border: "1px solid #ffe2df",
-            }}
-          >
-            🚪 Logout
-          </a>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button
+              onClick={() => {
+                refetchTenants();
+                refetchStats();
+                toast.info("Refreshing data...");
+              }}
+              style={{
+                background: "#e0e7ff",
+                color: "#1e3a8a",
+                padding: "8px 16px",
+                border: "none",
+                borderRadius: "40px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              🔄 Refresh
+            </button>
+            <a
+              href="/super-admin/logout"
+              style={{
+                background: "#f1f3f5",
+                color: "#c0392b",
+                padding: "8px 20px",
+                textDecoration: "none",
+                borderRadius: "40px",
+                fontWeight: 500,
+                fontSize: "13px",
+                border: "1px solid #ffe2df",
+              }}
+            >
+              🚪 Logout
+            </a>
+          </div>
         </div>
 
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "20px", marginBottom: "28px" }}>
           {[
-            { label: "📋 Total Salons", value: stats?.total_tenants ?? tenants.length },
+            { label: "📋 Total Salons", value: stats?.total_tenants ?? tenantsArray.length },
             { label: "✅ Active Salons", value: stats?.active_tenants ?? activeTenants },
           ].map((s) => (
             <div key={s.label} style={{ background: "#fff", padding: "24px 20px", borderRadius: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
@@ -132,7 +169,7 @@ export default function SuperDashboardPage() {
             <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "8px" }}>
               {[1,2,3].map(i => <Skeleton key={i} style={{ height: "44px" }} />)}
             </div>
-          ) : tenants.length === 0 ? (
+          ) : tenantsArray.length === 0 ? (
             <EmptyState icon="🏪" title="No salons registered yet" description='Click "+ New Salon" to get started.' />
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -147,7 +184,7 @@ export default function SuperDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tenants.map((t) => {
+                  {tenantsArray.map((t) => {
                     const tenantId = t.tenant_id || t.id || "";
                     return (
                       <tr key={tenantId} style={{ borderBottom: "1px solid #ecf3fa" }}>
@@ -189,7 +226,17 @@ export default function SuperDashboardPage() {
         </div>
       </div>
 
-      {showModal && <CreateTenantModal onClose={() => setShowModal(false)} onCreated={() => { qc.invalidateQueries({ queryKey: ["tenants"] }); setShowModal(false); }} />}
+      {showModal && (
+        <CreateTenantModal 
+          onClose={() => setShowModal(false)} 
+          onCreated={() => { 
+            // ✅ Force refetch after creating a new salon
+            refetchTenants(); 
+            refetchStats(); 
+            setShowModal(false); 
+          }} 
+        />
+      )}
     </div>
   );
 }
@@ -209,7 +256,7 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
     try {
       await api.post("/super-admin/api/tenants", form);
       toast.success(`Salon "${form.salon_name}" created!`);
-      onCreated();
+      onCreated(); // ✅ This triggers refetch
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to create salon");
     } finally {

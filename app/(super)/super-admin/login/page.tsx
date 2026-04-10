@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function SuperLoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -15,14 +13,14 @@ export default function SuperLoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/super-admin/login", {
+      const res = await fetch("/api/super-admin/login", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
       if (res.ok) {
-        router.replace("/super-admin/dashboard");
+        window.location.href = "/super-admin/dashboard";
       } else {
         setError("Invalid username or password.");
       }

@@ -14,19 +14,20 @@ export default function SuperDashboardPage() {
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
 
-  // Get refetch functions from useQuery
+  // ✅ Track loading states
   const { 
     data: tenants, 
-    isLoading, 
+    isLoading: tenantsLoading,
     refetch: refetchTenants 
   } = useQuery<Tenant[]>({
     queryKey: ["tenants"],
     queryFn: fetchTenants,
-    staleTime: 0, // Data is considered stale immediately
+    staleTime: 0,
   });
 
   const { 
     data: stats, 
+    isLoading: statsLoading,
     refetch: refetchStats 
   } = useQuery({
     queryKey: ["superStats"],
@@ -34,16 +35,13 @@ export default function SuperDashboardPage() {
     staleTime: 0,
   });
 
-  // ✅ Mutation for activating/suspending salons
   const toggleMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       api.patch(`/super-admin/api/tenants/${encodeURIComponent(id)}/status`, {
         status: status === "active" ? "suspended" : "active",
       }),
-    onSuccess: (_, variables) => { 
-      const newStatus = variables.status === "active" ? "suspended" : "active";
-      toast.success(`Salon ${newStatus === "active" ? "activated" : "suspended"} successfully!`);
-      // ✅ Force refetch after status change
+    onSuccess: () => { 
+      toast.success("Status updated");
       refetchTenants();
       refetchStats();
     },
@@ -52,6 +50,9 @@ export default function SuperDashboardPage() {
 
   const tenantsArray = Array.isArray(tenants) ? tenants : [];
   const activeTenants = tenantsArray.filter(t => t.status === "active").length;
+  
+  // ✅ Show loading state while data is fetching
+  const isLoading = tenantsLoading || statsLoading;
 
   return (
     <div
@@ -88,18 +89,20 @@ export default function SuperDashboardPage() {
                 refetchStats();
                 toast.info("Refreshing data...");
               }}
+              disabled={isLoading}
               style={{
                 background: "#e0e7ff",
                 color: "#1e3a8a",
                 padding: "8px 16px",
                 border: "none",
                 borderRadius: "40px",
-                cursor: "pointer",
+                cursor: isLoading ? "not-allowed" : "pointer",
                 fontSize: "13px",
                 fontWeight: 500,
+                opacity: isLoading ? 0.6 : 1,
               }}
             >
-              🔄 Refresh
+              {isLoading ? "Loading..." : "🔄 Refresh"}
             </button>
             <a
               href="/super-admin/logout"
@@ -119,17 +122,32 @@ export default function SuperDashboardPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats Cards - Show skeletons while loading */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: "20px", marginBottom: "28px" }}>
-          {[
-            { label: "📋 Total Salons", value: stats?.total_tenants ?? tenantsArray.length },
-            { label: "✅ Active Salons", value: stats?.active_tenants ?? activeTenants },
-          ].map((s) => (
-            <div key={s.label} style={{ background: "#fff", padding: "24px 20px", borderRadius: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
-              <div style={{ fontSize: "12px", fontWeight: 600, color: "#5b6e8c", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</div>
-              <div style={{ fontSize: "40px", fontWeight: 800, color: "#1e3a8a", marginTop: "8px" }}>{s.value}</div>
-            </div>
-          ))}
+          {isLoading ? (
+            // Show skeleton cards while loading
+            <>
+              <div style={{ background: "#fff", padding: "24px 20px", borderRadius: "20px" }}>
+                <Skeleton style={{ height: "12px", width: "60%", marginBottom: "12px" }} />
+                <Skeleton style={{ height: "40px", width: "40%" }} />
+              </div>
+              <div style={{ background: "#fff", padding: "24px 20px", borderRadius: "20px" }}>
+                <Skeleton style={{ height: "12px", width: "60%", marginBottom: "12px" }} />
+                <Skeleton style={{ height: "40px", width: "40%" }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ background: "#fff", padding: "24px 20px", borderRadius: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "#5b6e8c", textTransform: "uppercase", letterSpacing: "0.05em" }}>📋 Total Salons</div>
+                <div style={{ fontSize: "40px", fontWeight: 800, color: "#1e3a8a", marginTop: "8px" }}>{stats?.total_tenants ?? tenantsArray.length}</div>
+              </div>
+              <div style={{ background: "#fff", padding: "24px 20px", borderRadius: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "#5b6e8c", textTransform: "uppercase", letterSpacing: "0.05em" }}>✅ Active Salons</div>
+                <div style={{ fontSize: "40px", fontWeight: 800, color: "#1e3a8a", marginTop: "8px" }}>{stats?.active_tenants ?? activeTenants}</div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Table */}
@@ -166,8 +184,19 @@ export default function SuperDashboardPage() {
           </div>
 
           {isLoading ? (
+            // Show skeleton rows while loading
             <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {[1,2,3].map(i => <Skeleton key={i} style={{ height: "44px" }} />)}
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} style={{ display: "flex", gap: "16px", padding: "14px 16px" }}>
+                  <Skeleton style={{ height: "20px", width: "10%" }} />
+                  <Skeleton style={{ height: "20px", width: "20%" }} />
+                  <Skeleton style={{ height: "20px", width: "15%" }} />
+                  <Skeleton style={{ height: "20px", width: "20%" }} />
+                  <Skeleton style={{ height: "20px", width: "15%" }} />
+                  <Skeleton style={{ height: "20px", width: "10%" }} />
+                  <Skeleton style={{ height: "20px", width: "10%" }} />
+                </div>
+              ))}
             </div>
           ) : tenantsArray.length === 0 ? (
             <EmptyState icon="🏪" title="No salons registered yet" description='Click "+ New Salon" to get started.' />
@@ -230,7 +259,6 @@ export default function SuperDashboardPage() {
         <CreateTenantModal 
           onClose={() => setShowModal(false)} 
           onCreated={() => { 
-            // ✅ Force refetch after creating a new salon
             refetchTenants(); 
             refetchStats(); 
             setShowModal(false); 
@@ -256,7 +284,7 @@ function CreateTenantModal({ onClose, onCreated }: { onClose: () => void; onCrea
     try {
       await api.post("/super-admin/api/tenants", form);
       toast.success(`Salon "${form.salon_name}" created!`);
-      onCreated(); // ✅ This triggers refetch
+      onCreated();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to create salon");
     } finally {

@@ -36,6 +36,16 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|salon-admin|super-admin|widget).*)",
+    "/",
+    "/dashboard/:path*",
+    "/bookings/:path*",
+    "/clients/:path*",
+    "/staff/:path*",
+    "/packages/:path*",
+    "/deals/:path*",
+    "/reports/:path*",
+    "/settings/:path*",
+    "/super-admin/dashboard",
+    "/super-admin/dashboard/:path*",
   ],
 };

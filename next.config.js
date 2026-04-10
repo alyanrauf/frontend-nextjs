@@ -22,7 +22,6 @@ const nextConfig = {
         ];
     },
     async rewrites() {
-        console.log("📡 rewrites() called, backendUrl =", backendUrl);
         return [
             {
                 source: "/salon-admin/:path*",

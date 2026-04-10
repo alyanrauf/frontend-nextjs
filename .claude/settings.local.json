@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/vs self code/salon-bot/src/**)",
+      "Read(//d/vs self code/salon-bot/**)"
+    ],
+    "additionalDirectories": [
+      "d:\\vs self code\\salon-bot\\src"
+    ]
+  }
+}

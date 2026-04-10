@@ -6,6 +6,7 @@ Next.js 15 (App Router) admin dashboard. Deployed on Vercel. TypeScript + Tailwi
 
 All API calls use **relative paths** — no domain hardcoded in the frontend code. Next.js rewrites in `next.config.ts` proxy them to the Express backend server-side.
 
+**Backend code is now in**  `D:\vs self code\salon-bot` 
 ```ts
 // next.config.ts — MUST have BACKEND_URL set on Vercel
 const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
@@ -22,7 +23,7 @@ rewrites() {
 
 **Required Vercel env var:**
 ```
-BACKEND_URL=https://your-app.railway.app
+BACKEND_URL=https://salon-bot-20-saas-production.up.railway.app
 ```
 
 ## Project Structure

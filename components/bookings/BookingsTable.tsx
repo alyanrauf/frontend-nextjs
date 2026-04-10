@@ -230,6 +230,7 @@ export default function BookingsTable({ branchId, branchName }: Props) {
                         <td style={{ padding: "10px 14px" }}>
                           <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
                             {/* Edit button - show for confirmed and pending bookings */}
+                            
                             {(b.status === "confirmed" ) && (
                               <ActionBtn
                                 label="Edit"

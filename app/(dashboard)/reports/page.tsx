@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAnalytics, fetchBranches, fetchGeneral, QK } from "@/lib/queries";
 import type { AnalyticsResponse, Branch } from "@/lib/types";
@@ -30,6 +30,18 @@ export default function ReportsPage() {
   const [showCustomRange, setShowCustomRange] = useState(false);
   const [customFrom, setCustomFrom] = useState(today);
   const [customTo, setCustomTo] = useState(today);
+  const rangeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showCustomRange) return;
+    const handler = (e: MouseEvent) => {
+      if (rangeDropdownRef.current && !rangeDropdownRef.current.contains(e.target as Node)) {
+        setShowCustomRange(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showCustomRange]);
 
   const { data: branches = [] } = useQuery<Branch[]>({
     queryKey: QK.branches(),
@@ -86,23 +98,56 @@ export default function ReportsPage() {
             {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
           </select>
           <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-            <button
-              onClick={() => setShowCustomRange((v) => !v)}
-              title="Custom date range"
-              style={{
-                padding: "6px 10px",
-                borderRadius: "7px",
-                fontSize: "12px",
-                border: showCustomRange ? "1.5px solid var(--color-rose)" : "1.5px solid var(--color-border)",
-                background: showCustomRange ? "var(--color-rose-dim)" : "var(--color-surface)",
-                color: showCustomRange ? "var(--color-rose)" : "var(--color-sub)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <SlidersHorizontal size={14} />
-            </button>
+            <div ref={rangeDropdownRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowCustomRange((v) => !v)}
+                title="Custom date range"
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: "7px",
+                  fontSize: "12px",
+                  border: showCustomRange ? "1.5px solid var(--color-rose)" : "1.5px solid var(--color-border)",
+                  background: showCustomRange ? "var(--color-rose-dim)" : "var(--color-surface)",
+                  color: showCustomRange ? "var(--color-rose)" : "var(--color-sub)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <SlidersHorizontal size={14} />
+              </button>
+              {showCustomRange && (
+                <div style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "10px",
+                  padding: "12px 16px",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  zIndex: 50,
+                  whiteSpace: "nowrap",
+                }}>
+                  <input
+                    type="date"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "7px", fontSize: "12px", background: "var(--color-canvas)" }}
+                  />
+                  <span style={{ fontSize: "12px", color: "var(--color-sub)" }}>→</span>
+                  <input
+                    type="date"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "7px", fontSize: "12px", background: "var(--color-canvas)" }}
+                  />
+                </div>
+              )}
+            </div>
             {PERIODS.map(p => (
               <button
                 key={p.id}
@@ -124,25 +169,6 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
-
-      {/* Custom date range row */}
-      {showCustomRange && (
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-          <input
-            type="date"
-            value={customFrom}
-            onChange={(e) => setCustomFrom(e.target.value)}
-            style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "7px", fontSize: "12px", background: "var(--color-surface)" }}
-          />
-          <span style={{ fontSize: "12px", color: "var(--color-sub)" }}>→</span>
-          <input
-            type="date"
-            value={customTo}
-            onChange={(e) => setCustomTo(e.target.value)}
-            style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "7px", fontSize: "12px", background: "var(--color-surface)" }}
-          />
-        </div>
-      )}
 
       {/* Summary KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "16px" }}>

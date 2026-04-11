@@ -108,18 +108,14 @@ function GeneralTab() {
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Keep state in sync once general loads
-  useEffect(() => {
-    if (general?.currency) setCurrency(general.currency);
-    const bn = (general as Record<string, string> | undefined)?.bot_name;
-    if (bn) setBotName(bn);
-    const pc = (general as Record<string, string> | undefined)?.primary_color;
-    if (pc) setPrimaryColor(pc);
-  }, [general]);
+  const generalBotName = (general as Record<string, string> | undefined)?.bot_name ?? "";
+  if (generalBotName && botName === "" && generalBotName !== botName) {
+    setBotName(generalBotName);
+  }
 
   const tenantId = general?.tenantId ?? "…";
-  const [origin, setOrigin] = useState("");
-  useEffect(() => { setOrigin(window.location.origin); }, []);
-  const widgetUrl = `${origin}/widget/${tenantId}/widget.js`;
+  const backendOrigin = process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
+  const widgetUrl = `${backendOrigin}/widget/${tenantId}/widget.js`;
   const scriptAttrs = [
     `src="${widgetUrl}"`,
     botName.trim() ? `data-bot-name="${botName.trim()}"` : null,

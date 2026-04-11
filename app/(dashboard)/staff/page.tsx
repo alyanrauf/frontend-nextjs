@@ -13,10 +13,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CHART_COLORS, formatDate } from "@/lib/utils";
 
+const today = new Date().toISOString().slice(0, 10);
+
 export default function StaffPage() {
   const [branchFilter, setBranchFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().slice(0, 10));
-  const today = new Date().toISOString().slice(0, 10);
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
 

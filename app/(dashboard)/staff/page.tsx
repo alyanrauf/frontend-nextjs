@@ -2,35 +2,45 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchBookings, fetchStaff, fetchBranches, QK } from "@/lib/queries";
-import type { Booking, Staff, Branch } from "@/lib/types";
+import type { Booking, Branch } from "@/lib/types";
 import { useState } from "react";
 import {
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { CHART_COLORS, formatDate } from "@/lib/utils";
+import { CHART_COLORS } from "@/lib/utils";
 
-const today = new Date().toISOString().slice(0, 10);
+type Period = "today" | "week" | "month";
+
+function getPeriodDates(period: Period): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const to = now.toISOString().slice(0, 10);
+  if (period === "today") return { dateFrom: to, dateTo: to };
+  const from = new Date(now);
+  if (period === "week") {
+    from.setDate(from.getDate() - 6);
+  } else {
+    from.setDate(1);
+  }
+  return { dateFrom: from.toISOString().slice(0, 10), dateTo: to };
+}
+
+const PERIOD_LABELS: Record<Period, string> = {
+  today: "Today",
+  week: "Week",
+  month: "Month",
+};
 
 export default function StaffPage() {
   const [branchFilter, setBranchFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().slice(0, 10));
-  const [dateFrom, setDateFrom] = useState(today);
-  const [dateTo, setDateTo] = useState(today);
+  const [period, setPeriod] = useState<Period>("today");
 
   const { data: branches = [] } = useQuery<Branch[]>({
     queryKey: QK.branches(),
     queryFn: fetchBranches,
     staleTime: 10 * 60_000,
-  });
-
-  const { data: staff = [] } = useQuery<Staff[]>({
-    queryKey: QK.staff(),
-    queryFn: fetchStaff,
-    staleTime: 5 * 60_000,
   });
 
   const { data: bookings = [], isLoading } = useQuery<Booking[]>({
@@ -39,36 +49,54 @@ export default function StaffPage() {
     staleTime: 60_000,
   });
 
-  // Filter by branch
   const filteredBranches = branchFilter
     ? branches.filter((b) => b.name === branchFilter)
     : branches;
 
-  // Completed bookings in date range (for branch-wise chart)
-  const completedInRange = bookings.filter(
-    (b) =>
-      b.status === "completed" &&
-      b.staff_name &&
-      b.date >= dateFrom &&
-      b.date <= dateTo,
+  const { dateFrom, dateTo } = getPeriodDates(period);
+
+  // All bookings in period with a staff member assigned
+  const periodBookings = bookings.filter(
+    (b) => b.staff_name && b.date >= dateFrom && b.date <= dateTo,
   );
 
-  // Workload on selected date
-  const dayBookings = bookings.filter(
-    (b) =>
-      b.date === dateFilter &&
-      (b.status === "confirmed" || b.status === "completed") &&
-      b.staff_name,
+  // Completed only — for the bar chart
+  const completedInRange = periodBookings.filter(
+    (b) => b.status === "completed",
   );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <h3 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>
-        Staff Management & Availability
-      </h3>
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <h3 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>
+          Staff Management & Availability
+        </h3>
+        <div style={{ display: "flex", gap: "6px" }}>
+          {(["today", "week", "month"] as Period[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                border: period === p ? "none" : "1px solid var(--color-border)",
+                background: period === p ? "var(--color-rose)" : "var(--color-surface)",
+                color: period === p ? "#fff" : "var(--color-text)",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+      {/* Branch filter */}
+      <div>
         <select
           value={branchFilter}
           onChange={(e) => setBranchFilter(e.target.value)}
@@ -81,55 +109,38 @@ export default function StaffPage() {
           }}
         >
           <option value="">All Branches</option>
-          {branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}
+          {branches.map((b) => (
+            <option key={b.id} value={b.name}>{b.name}</option>
+          ))}
         </select>
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => setDateFilter(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid var(--color-border)",
-            borderRadius: "8px",
-            fontSize: "13px",
-            background: "var(--color-surface)",
-          }}
-        />
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid var(--color-border)",
-            borderRadius: "8px",
-            fontSize: "13px",
-            background: "var(--color-surface)",
-          }}
-        />
-        <span style={{ fontSize: "13px", color: "var(--color-sub)", alignSelf: "center" }}>→</span>
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid var(--color-border)",
-            borderRadius: "8px",
-            fontSize: "13px",
-            background: "var(--color-surface)",
-          }}
-        />
       </div>
 
-      {/* Per-branch Top Staff by Completed Bookings */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {/* 2-column grid of branch cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
         {filteredBranches.map((branch, branchIndex) => {
           const branchCompleted = completedInRange.filter(
             (b) => b.branch === branch.name,
           );
+          const branchPeriod = periodBookings.filter(
+            (b) => b.branch === branch.name,
+          );
 
-          const staffMap = branchCompleted.reduce<Record<string, typeof branchCompleted>>(
+          // Group completed bookings by staff for bar chart
+          const completedByStaff = branchCompleted.reduce<Record<string, number>>(
+            (acc, b) => {
+              const key = b.staff_name!;
+              acc[key] = (acc[key] ?? 0) + 1;
+              return acc;
+            },
+            {},
+          );
+
+          const chartData = Object.entries(completedByStaff)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({ name, count }));
+
+          // Group all period bookings by staff for detail list
+          const allByStaff = branchPeriod.reduce<Record<string, Booking[]>>(
             (acc, b) => {
               const key = b.staff_name!;
               if (!acc[key]) acc[key] = [];
@@ -139,118 +150,118 @@ export default function StaffPage() {
             {},
           );
 
-          const staffEntries = Object.entries(staffMap).sort(
-            (a, b) => b[1].length - a[1].length,
+          const staffEntries = Object.entries(allByStaff).sort(
+            (a, b) => b[1].filter((x) => x.status === "completed").length
+                    - a[1].filter((x) => x.status === "completed").length,
           );
 
-          const chartData = staffEntries.map(([name, bks]) => ({
-            name,
-            count: bks.length,
-          }));
-
-          const dateLabel =
-            dateFrom === dateTo
-              ? dateFrom
-              : `${dateFrom} → ${dateTo}`;
+          const showDate = dateFrom !== dateTo;
 
           return (
             <Card key={branch.id}>
               <CardHeader>
                 <span style={{ fontWeight: 600, fontSize: "14px" }}>
-                  🏆 {branch.name} — Top Staff by Completed Bookings
+                  🏪 {branch.name}
                 </span>
                 <span style={{ fontSize: "11px", color: "var(--color-sub)" }}>
-                  {dateLabel} · completed
+                  {PERIOD_LABELS[period]} · completed &amp; scheduled
                 </span>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <Skeleton style={{ height: "160px" }} />
+                  <Skeleton style={{ height: "200px" }} />
                 ) : staffEntries.length === 0 ? (
-                  <EmptyState icon="🏆" title="No completed bookings in this range" />
+                  <EmptyState icon="📊" title="No bookings in this period" />
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                    <ResponsiveContainer
-                      width="100%"
-                      height={Math.max(120, staffEntries.length * 32)}
-                    >
-                      <BarChart
-                        data={chartData}
-                        layout="vertical"
-                        margin={{ left: 0, right: 16 }}
-                      >
-                        <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          width={120}
-                          tick={{ fontSize: 11 }}
-                        />
-                        <Tooltip
-                          formatter={(v: unknown) => [String(v ?? 0), "Completed"]}
-                          contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
-                        />
-                        <Bar
-                          dataKey="count"
-                          fill={CHART_COLORS[branchIndex % CHART_COLORS.length]}
-                          radius={[0, 4, 4, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {/* Bar chart — completed count per staff */}
+                    {chartData.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-sub)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Completed Bookings
+                        </div>
+                        <ResponsiveContainer
+                          width="100%"
+                          height={Math.max(80, chartData.length * 30)}
+                        >
+                          <BarChart
+                            data={chartData}
+                            layout="vertical"
+                            margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
+                          >
+                            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              width={110}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip
+                              formatter={(v: unknown) => [String(v ?? 0), "Completed"]}
+                              contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                            />
+                            <Bar
+                              dataKey="count"
+                              fill={CHART_COLORS[branchIndex % CHART_COLORS.length]}
+                              radius={[0, 4, 4, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
 
-                    <div
-                      style={{
-                        borderTop: "1px solid var(--color-border)",
-                        paddingTop: "12px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "12px",
-                      }}
-                    >
-                      {staffEntries.map(([staffName, bks]) => (
-                        <div key={staffName}>
+                    {/* Booking detail list per staff */}
+                    <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {staffEntries.map(([staffName, bks]) => {
+                        const completedCount = bks.filter((b) => b.status === "completed").length;
+                        return (
                           <div
+                            key={staffName}
                             style={{
-                              fontWeight: 600,
-                              fontSize: "13px",
-                              marginBottom: "4px",
+                              border: "1px solid var(--color-border)",
+                              borderRadius: "8px",
+                              padding: "10px 14px",
+                              background: "var(--color-canvas)",
                             }}
                           >
-                            {staffName}
-                            <span
-                              style={{
-                                marginLeft: "8px",
-                                fontSize: "11px",
-                                color: "var(--color-sub)",
-                                fontWeight: 400,
-                              }}
-                            >
-                              {bks.length} completed
-                            </span>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                              <span style={{ fontWeight: 600, fontSize: "13px" }}>{staffName}</span>
+                              {completedCount > 0 && (
+                                <span style={{ fontSize: "11px", color: "var(--color-sub)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "2px 8px" }}>
+                                  {completedCount} completed
+                                </span>
+                              )}
+                            </div>
+                            {[...bks]
+                              .sort((a, b) => {
+                                if (a.date !== b.date) return a.date.localeCompare(b.date);
+                                return a.time.localeCompare(b.time);
+                              })
+                              .map((b) => (
+                                <div
+                                  key={b.id}
+                                  style={{
+                                    fontSize: "12px",
+                                    color: b.status === "completed" ? "var(--color-rose)" : "var(--color-sub)",
+                                    marginBottom: "2px",
+                                    display: "flex",
+                                    gap: "4px",
+                                    alignItems: "baseline",
+                                  }}
+                                >
+                                  {showDate && (
+                                    <span style={{ color: "var(--color-muted)", fontSize: "11px", flexShrink: 0 }}>
+                                      {b.date} ·
+                                    </span>
+                                  )}
+                                  <span>
+                                    {b.time} – {b.endTime ?? "?"} · {b.service} · {b.customer_name}
+                                  </span>
+                                </div>
+                              ))}
                           </div>
-                          {[...bks]
-                            .sort((a, b) => {
-                              if (a.date !== b.date) return a.date.localeCompare(b.date);
-                              return a.time.localeCompare(b.time);
-                            })
-                            .map((b) => (
-                              <div
-                                key={b.id}
-                                style={{
-                                  fontSize: "12px",
-                                  color: "var(--color-rose)",
-                                  marginBottom: "2px",
-                                }}
-                              >
-                                {b.date !== dateFrom || dateFrom !== dateTo
-                                  ? `${b.date} · `
-                                  : ""}
-                                {b.time} – {b.endTime ?? "?"} · {b.service} ·{" "}
-                                {b.customer_name}
-                              </div>
-                            ))}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -259,76 +270,6 @@ export default function StaffPage() {
           );
         })}
       </div>
-
-      {/* Per-branch workload */}
-      {filteredBranches.map((branch) => {
-        const branchStaff = staff.filter((s) => s.branch_id === branch.id);
-        const branchDayBookings = dayBookings.filter((b) => b.branch === branch.name);
-
-        const workloadData = branchStaff
-          .map((s) => ({
-            name: s.name,
-            bookings: branchDayBookings.filter((b) => b.staff_name === s.name).length,
-          }))
-          .filter((s) => s.bookings > 0);
-
-        return (
-          <Card key={branch.id}>
-            <CardHeader>
-              <span style={{ fontWeight: 600 }}>🏪 {branch.name}</span>
-              <span style={{ fontSize: "12px", color: "var(--color-sub)" }}>
-                Staff Workload on {formatDate(dateFilter)}
-              </span>
-            </CardHeader>
-            <CardContent>
-              {workloadData.length === 0 ? (
-                <EmptyState icon="📊" title="No bookings on this date" />
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "24px", alignItems: "center" }}>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <PieChart>
-                      <Pie data={workloadData} dataKey="bookings" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70}>
-                        {workloadData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: unknown, n: unknown) => [`${v} bookings`, n as string]} contentStyle={{ fontSize: "12px", borderRadius: "8px" }} />
-                      <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: "11px" }}>{v}</span>} />
-                    </PieChart>
-                  </ResponsiveContainer>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {branchStaff.map((s) => {
-                      const todayBookings = branchDayBookings.filter((b) => b.staff_name === s.name);
-                      return (
-                        <div
-                          key={s.id}
-                          style={{
-                            border: "1px solid var(--color-border)",
-                            borderRadius: "8px",
-                            padding: "12px 16px",
-                            background: "var(--color-canvas)",
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: "13px" }}>{s.name}</div>
-                          <div style={{ fontSize: "11px", color: "var(--color-sub)", marginBottom: "6px" }}>{s.role}</div>
-                          {todayBookings.length === 0 ? (
-                            <div style={{ fontSize: "12px", color: "var(--color-muted)" }}>No bookings today</div>
-                          ) : (
-                            todayBookings.map((b) => (
-                              <div key={b.id} style={{ fontSize: "12px", color: "var(--color-rose)", marginBottom: "2px" }}>
-                                {b.time} – {b.endTime ?? "?"} · {b.service} · {b.customer_name}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })}
     </div>
   );
 }

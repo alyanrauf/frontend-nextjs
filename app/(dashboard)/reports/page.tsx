@@ -48,6 +48,21 @@ export default function ReportsPage() {
   const topServices = (analytics?.topServices ?? []).slice(0, 10);
   const revenueByService = (analytics?.revenueByService ?? []).filter(s => s.name && s.revenue > 0).slice(0, 8);
 
+  const STATUS_META: Record<string, { label: string; color: string }> = {
+    completed:  { label: "Completed",  color: "#22c55e" },
+    confirmed:  { label: "Confirmed",  color: "#3b82f6" },
+    canceled:   { label: "Canceled",   color: "#ef4444" },
+    no_show:    { label: "No Show",    color: "#f97316" },
+  };
+  const statusData = Object.entries(analytics?.bookingsByStatus ?? {})
+    .map(([status, count]) => ({
+      name: STATUS_META[status]?.label ?? status,
+      value: count,
+      color: STATUS_META[status]?.color ?? "#94a3b8",
+    }))
+    .filter(s => s.value > 0)
+    .sort((a, b) => b.value - a.value);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
@@ -130,6 +145,39 @@ export default function ReportsPage() {
                 <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: "11px" }}>{v}</span>} />
               </PieChart>
             </ResponsiveContainer>}
+          </CardContent>
+        </Card>
+
+        {/* Booking Status Pie */}
+        <Card style={{ gridColumn: "1 / -1" }}>
+          <CardHeader>
+            <span style={{ fontWeight: 600, fontSize: "13px" }}>📋 Bookings by Status</span>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? <Skeleton style={{ height: "220px" }} /> :
+             statusData.length === 0 ? <EmptyState icon="📋" title="No booking data for this period" /> :
+            <div style={{ display: "flex", alignItems: "center", gap: "32px", flexWrap: "wrap" }}>
+              <ResponsiveContainer width={260} height={220}>
+                <PieChart>
+                  <Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3}>
+                    {statusData.map((s, i) => <Cell key={i} fill={s.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: unknown, name: unknown) => [String(v), name as string]} contentStyle={{ fontSize: "12px", borderRadius: "8px" }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {statusData.map((s) => (
+                  <div key={s.name} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: "13px", color: "var(--color-ink)", fontWeight: 500, minWidth: "90px" }}>{s.name}</span>
+                    <span style={{ fontSize: "13px", color: "var(--color-sub)", fontWeight: 600 }}>{s.value}</span>
+                    <span style={{ fontSize: "11px", color: "var(--color-sub)" }}>
+                      ({Math.round(s.value / statusData.reduce((t, x) => t + x.value, 0) * 100)}%)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>}
           </CardContent>
         </Card>
       </div>

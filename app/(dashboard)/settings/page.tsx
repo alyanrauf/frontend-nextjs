@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { BranchDrawer } from "@/components/settings/BranchDrawer";
 import { StaffDrawer } from "@/components/settings/StaffDrawer";
 import { RoleDrawer } from "@/components/settings/RoleDrawer";
+import {IntegrationsTab} from "@/components/settings/IntegrationsTab";
 
 import { ModalShell } from "@/components/ui/ModalShell";
 type SettingsTab = "general" | "branches" | "staff" | "roles" | "timings" | "integrations" | "account";
@@ -85,14 +86,13 @@ export default function SettingsPage() {
       {activeTab === "staff" && <StaffTab />}
       {activeTab === "roles" && <RolesTab />}
       {activeTab === "timings" && <TimingsTab />}
-      {activeTab === "integrations" && <IntegrationsTab />}
+      {activeTab === "integrations" && <IntegrationsTabWrapper />}
       {activeTab === "account" && <AccountTab />}
     </div>
   );
 }
 
 /* ─── General Tab ─── */
-/* ─── General Tab — Refined with Two-Column Layout (Matching Website Design) ─── */
 function GeneralTab() {
   const qc = useQueryClient();
   const { data: general } = useQuery({
@@ -108,10 +108,13 @@ function GeneralTab() {
   const [copiedUrl, setCopiedUrl] = useState(false);
 
   // Keep state in sync once general loads
-  const generalBotName = (general as Record<string, string> | undefined)?.bot_name ?? "";
-  if (generalBotName && botName === "" && generalBotName !== botName) {
-    setBotName(generalBotName);
-  }
+  useEffect(() => {
+    if (general?.currency) setCurrency(general.currency);
+    const bn = (general as Record<string, string> | undefined)?.bot_name;
+    if (bn) setBotName(bn);
+    const pc = (general as Record<string, string> | undefined)?.primary_color;
+    if (pc) setPrimaryColor(pc);
+  }, [general]);
 
   const tenantId = general?.tenantId ?? "…";
   const [origin, setOrigin] = useState("");
@@ -1078,145 +1081,15 @@ function TimeInput({
 }
 
 /* ─── Integrations Tab ─── */
-function IntegrationsTab() {
-  const qc = useQueryClient();
-  const { data: config } = useQuery<WebhookConfig>({
-    queryKey: QK.webhookConfig(),
-    queryFn: fetchWebhookConfig,
-    staleTime: 5 * 60_000,
+
+function IntegrationsTabWrapper() {
+  const { data: general } = useQuery({
+    queryKey: QK.general(),
+    queryFn: fetchGeneral,
+    staleTime: 10 * 60_000,
   });
-
-  const backendOrigin =
-    typeof window !== "undefined" ? window.location.origin : "";
-
-  const [wa, setWa] = useState({ phone_number_id: "", access_token: "", verify_token: "" });
-  const [ig, setIg] = useState({ page_access_token: "", verify_token: "" });
-  const [fb, setFb] = useState({ page_access_token: "", verify_token: "" });
-
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      api.put("/salon-admin/api/webhook-config", {
-        wa_phone_number_id: wa.phone_number_id || undefined,
-        wa_access_token: wa.access_token || undefined,
-        wa_verify_token: wa.verify_token || undefined,
-        ig_page_access_token: ig.page_access_token || undefined,
-        ig_verify_token: ig.verify_token || undefined,
-        fb_page_access_token: fb.page_access_token || undefined,
-        fb_verify_token: fb.verify_token || undefined,
-      }),
-    onSuccess: () => {
-      toast.success("Integrations saved");
-      setWa({ phone_number_id: "", access_token: "", verify_token: "" });
-      setIg({ page_access_token: "", verify_token: "" });
-      setFb({ page_access_token: "", verify_token: "" });
-      qc.invalidateQueries({ queryKey: QK.webhookConfig() });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  function StatusBadge({ connected }: { connected: boolean }) {
-    return (
-      <span style={{
-        display: "inline-block",
-        padding: "2px 8px",
-        borderRadius: "20px",
-        fontSize: "11px",
-        fontWeight: 600,
-        background: connected ? "#dcfce7" : "#f1f5f9",
-        color: connected ? "#16a34a" : "#94a3b8",
-      }}>
-        {connected ? "Connected" : "Not connected"}
-      </span>
-    );
-  }
-
-  function WebhookUrlRow({ label, path }: { label: string; path?: string }) {
-    const [copied, setCopied] = useState(false);
-    const full = path ? `${backendOrigin}${path}` : "";
-    if (!full) return null;
-    return (
-      <div style={{ marginBottom: "8px" }}>
-        <p style={{ fontSize: "11px", color: "var(--color-sub)", marginBottom: "3px" }}>{label}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid var(--color-border)", borderRadius: "6px", padding: "7px 10px" }}>
-          <code style={{ fontSize: "11px", color: "#6366f1", flex: 1, wordBreak: "break-all" }}>{full}</code>
-          <button onClick={() => { navigator.clipboard.writeText(full); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-            style={{ padding: "3px 8px", background: copied ? "#22c55e" : "#667eea", color: "#fff", border: "none", borderRadius: "4px", fontSize: "10px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-            {copied ? "Copied!" : "Copy"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function CredField({ label, value, onChange, placeholder, isPassword }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; isPassword?: boolean }) {
-    return (
-      <div style={{ marginBottom: "10px" }}>
-        <label style={{ fontSize: "12px", fontWeight: 500, display: "block", marginBottom: "4px", color: "var(--color-sub)" }}>{label}</label>
-        <input
-          type={isPassword ? "password" : "text"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete="off"
-          style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--color-border)", borderRadius: "6px", fontSize: "13px", background: "var(--color-surface)", boxSizing: "border-box" }}
-        />
-      </div>
-    );
-  }
-
-  function PlatformCard({ icon, title, connected, webhookPath, children }: {
-    icon: string; title: string; connected: boolean; webhookPath?: string; children: React.ReactNode;
-  }) {
-    return (
-      <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px", marginBottom: "16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <span style={{ fontSize: "22px" }}>{icon}</span>
-          <div style={{ flex: 1 }}>
-            <h4 style={{ fontWeight: 600, margin: 0 }}>{title}</h4>
-          </div>
-          <StatusBadge connected={connected} />
-        </div>
-        {webhookPath && (
-          <div style={{ marginBottom: "16px" }}>
-            <p style={{ fontSize: "12px", fontWeight: 600, marginBottom: "6px", color: "var(--color-text)" }}>Webhook URL — paste this into Meta Developer Console</p>
-            <WebhookUrlRow label="Webhook endpoint" path={webhookPath} />
-          </div>
-        )}
-        <p style={{ fontSize: "12px", color: "var(--color-sub)", marginBottom: "12px" }}>
-          Leave fields blank to keep existing credentials.
-        </p>
-        {children}
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ maxWidth: "600px" }}>
-      <p style={{ fontSize: "13px", color: "var(--color-sub)", marginBottom: "20px" }}>
-        Connect your salon&apos;s WhatsApp, Instagram, and Facebook accounts so customers can book through messaging apps.
-      </p>
-
-      <PlatformCard icon="💬" title="WhatsApp" connected={!!config?.has_whatsapp} webhookPath={config?.webhook_urls?.whatsapp}>
-        <CredField label="Phone Number ID" value={wa.phone_number_id} onChange={(v) => setWa((p) => ({ ...p, phone_number_id: v }))} placeholder="Enter Phone Number ID" />
-        <CredField label="Access Token" value={wa.access_token} onChange={(v) => setWa((p) => ({ ...p, access_token: v }))} placeholder="Enter Access Token" isPassword />
-        <CredField label="Verify Token (your custom string)" value={wa.verify_token} onChange={(v) => setWa((p) => ({ ...p, verify_token: v }))} placeholder="e.g. my-salon-verify-123" />
-      </PlatformCard>
-
-      <PlatformCard icon="📸" title="Instagram" connected={!!config?.has_instagram} webhookPath={config?.webhook_urls?.instagram}>
-        <CredField label="Page Access Token" value={ig.page_access_token} onChange={(v) => setIg((p) => ({ ...p, page_access_token: v }))} placeholder="Enter Page Access Token" isPassword />
-        <CredField label="Verify Token (your custom string)" value={ig.verify_token} onChange={(v) => setIg((p) => ({ ...p, verify_token: v }))} placeholder="e.g. my-salon-ig-verify" />
-      </PlatformCard>
-
-      <PlatformCard icon="👍" title="Facebook Messenger" connected={!!config?.has_facebook} webhookPath={config?.webhook_urls?.facebook}>
-        <CredField label="Page Access Token" value={fb.page_access_token} onChange={(v) => setFb((p) => ({ ...p, page_access_token: v }))} placeholder="Enter Page Access Token" isPassword />
-        <CredField label="Verify Token (your custom string)" value={fb.verify_token} onChange={(v) => setFb((p) => ({ ...p, verify_token: v }))} placeholder="e.g. my-salon-fb-verify" />
-      </PlatformCard>
-
-      <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} style={primaryBtn}>
-        {saveMutation.isPending ? "Saving…" : "Save Integrations"}
-      </button>
-    </div>
-  );
+  const tenantId = general?.tenantId ?? "";
+  return <IntegrationsTab tenantId={tenantId} />;
 }
 
 /* ─── Account Tab ─── */
@@ -1250,30 +1123,145 @@ function AccountTab() {
   }
 
   return (
-    <div style={{ maxWidth: "420px" }}>
-      <h3 style={{ fontWeight: 600, marginBottom: "4px" }}>Change Password</h3>
-      <p style={{ fontSize: "13px", color: "var(--color-sub)", marginBottom: "20px" }}>
-        Update your login password. You will need your current password to confirm.
-      </p>
-      <form onSubmit={handleSubmit}>
-        {(["currentPassword", "newPassword", "confirmPassword"] as const).map((field) => (
-          <div key={field} style={{ marginBottom: "14px" }}>
-            <label style={{ display: "block", fontSize: "13px", fontWeight: 500, marginBottom: "4px", color: "var(--color-sub)" }}>
-              {field === "currentPassword" ? "Current Password" : field === "newPassword" ? "New Password" : "Confirm New Password"}
+    <div style={{ maxWidth: "560px" }}>
+      <div
+        style={{
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+          borderRadius: "var(--radius-md)",
+          padding: "24px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+          <span style={{ fontSize: "24px" }}>🔐</span>
+          <div>
+            <h4 style={{ fontWeight: 600, marginBottom: "4px" }}>Change Password</h4>
+            <p style={{ fontSize: "13px", color: "var(--color-sub)", margin: 0 }}>
+              Update your login password. You will need your current password to confirm.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {/* Current Password */}
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px", color: "var(--color-ink)" }}>
+              Current Password
             </label>
             <input
               type="password"
               required
-              value={form[field]}
-              onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
-              style={{ width: "100%", padding: "9px 12px", border: "1.5px solid var(--color-border)", borderRadius: "8px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+              value={form.currentPassword}
+              onChange={(e) => setForm((f) => ({ ...f, currentPassword: e.target.value }))}
+              placeholder="Enter your current password"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                border: "1.5px solid var(--color-border)",
+                borderRadius: "8px",
+                fontSize: "14px",
+                background: "var(--color-surface)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => e.target.style.borderColor = "var(--color-rose)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--color-border)"}
             />
           </div>
-        ))}
-        <button type="submit" disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>
-          {loading ? "Saving…" : "Update Password"}
-        </button>
-      </form>
+
+          {/* New Password */}
+          <div style={{ marginBottom: "20px" }}>
+            <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px", color: "var(--color-ink)" }}>
+              New Password
+            </label>
+            <input
+              type="password"
+              required
+              value={form.newPassword}
+              onChange={(e) => setForm((f) => ({ ...f, newPassword: e.target.value }))}
+              placeholder="Enter new password (min. 6 characters)"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                border: "1.5px solid var(--color-border)",
+                borderRadius: "8px",
+                fontSize: "14px",
+                background: "var(--color-surface)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => e.target.style.borderColor = "var(--color-rose)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--color-border)"}
+            />
+          </div>
+
+          {/* Confirm New Password */}
+          <div style={{ marginBottom: "24px" }}>
+            <label style={{ fontSize: "13px", fontWeight: 500, display: "block", marginBottom: "6px", color: "var(--color-ink)" }}>
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              required
+              value={form.confirmPassword}
+              onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+              placeholder="Re-enter your new password"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                border: "1.5px solid var(--color-border)",
+                borderRadius: "8px",
+                fontSize: "14px",
+                background: "var(--color-surface)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => e.target.style.borderColor = "var(--color-rose)"}
+              onBlur={(e) => e.target.style.borderColor = "var(--color-border)"}
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", borderTop: "1px solid var(--color-border)", paddingTop: "20px" }}>
+            <button
+              type="button"
+              onClick={() => setForm({ currentPassword: "", newPassword: "", confirmPassword: "" })}
+              style={outlineBtn}
+            >
+              Clear
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}
+            >
+              {loading ? "Updating..." : "Update Password"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Password Tips Card */}
+      <div
+        style={{
+          background: "var(--color-canvas)",
+          border: "1px solid var(--color-border)",
+          borderRadius: "var(--radius-md)",
+          padding: "16px 20px",
+          marginTop: "16px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+          <span style={{ fontSize: "16px" }}>💡</span>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-ink)" }}>Password Tips</span>
+        </div>
+        <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "var(--color-sub)" }}>
+          <li>Use at least 6 characters</li>
+          <li>Use a mix of letters, numbers, and symbols</li>
+          <li>Avoid using common words or personal information</li>
+          <li>Never share your password with anyone</li>
+        </ul>
+      </div>
     </div>
   );
 }

@@ -72,6 +72,7 @@ export interface AnalyticsResponse {
   revenueByService: Array<{ name: string; revenue: number; percent: number }>;
   bookingsByBranch: Record<string, number>;
   revenueByBranch: Record<string, number>;
+  bookingsByStatus?: Record<string, number>;
   queryRange?: { start: string; end: string; tz: string };
   filtersApplied?: Record<string, unknown>;
   dataFreshAsOf?: string;

@@ -16,6 +16,9 @@ import { CHART_COLORS, formatDate } from "@/lib/utils";
 export default function StaffPage() {
   const [branchFilter, setBranchFilter] = useState("");
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().slice(0, 10));
+  const today = new Date().toISOString().slice(0, 10);
+  const [dateFrom, setDateFrom] = useState(today);
+  const [dateTo, setDateTo] = useState(today);
 
   const { data: branches = [] } = useQuery<Branch[]>({
     queryKey: QK.branches(),
@@ -100,6 +103,31 @@ export default function StaffPage() {
           type="date"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid var(--color-border)",
+            borderRadius: "8px",
+            fontSize: "13px",
+            background: "var(--color-surface)",
+          }}
+        />
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid var(--color-border)",
+            borderRadius: "8px",
+            fontSize: "13px",
+            background: "var(--color-surface)",
+          }}
+        />
+        <span style={{ fontSize: "13px", color: "var(--color-sub)", alignSelf: "center" }}>→</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
           style={{
             padding: "8px 12px",
             border: "1px solid var(--color-border)",

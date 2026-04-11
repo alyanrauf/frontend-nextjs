@@ -44,19 +44,6 @@ export default function StaffPage() {
     ? branches.filter((b) => b.name === branchFilter)
     : branches;
 
-  // ✅ FIX: "Most Requested" = staffRequested=true only
-  const requestedCounts = bookings
-    .filter((b) => b.staffRequested && b.staff_name)
-    .reduce<Record<string, number>>((acc, b) => {
-      if (b.staff_name) acc[b.staff_name] = (acc[b.staff_name] ?? 0) + 1;
-      return acc;
-    }, {});
-
-  const mostRequested = Object.entries(requestedCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([name, count]) => ({ name, count }));
-
   // Completed bookings in date range (for branch-wise chart)
   const completedInRange = bookings.filter(
     (b) =>

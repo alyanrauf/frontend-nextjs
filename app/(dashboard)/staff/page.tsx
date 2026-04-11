@@ -135,33 +135,142 @@ export default function StaffPage() {
         />
       </div>
 
-      {/* CRM charts */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-          {/* <Card>
-          <CardHeader>
-           
-            <span style={{ fontWeight: 600, fontSize: "14px" }}>⭐ Client-Requested Staff</span>
-            <span style={{ fontSize: "11px", color: "var(--color-sub)" }}>
-              Explicitly chosen during booking
-            </span>
-          </CardHeader> 
-           <CardContent>
-            {isLoading ? <Skeleton style={{ height: "160px" }} /> :
-             mostRequested.length === 0 ? (
-              <EmptyState icon="⭐" title="No explicit staff requests yet" />
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(120, mostRequested.length * 28)}>
-                <BarChart data={mostRequested} layout="vertical" margin={{ left: 0, right: 16 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: unknown) => [String(v ?? 0), "Requests"]} contentStyle={{ fontSize: "12px", borderRadius: "8px" }} />
-                  <Bar dataKey="count" fill={CHART_COLORS[0]} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent> 
-        </Card> */}
+      {/* Per-branch Top Staff by Completed Bookings */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        {filteredBranches.map((branch, branchIndex) => {
+          const branchCompleted = completedInRange.filter(
+            (b) => b.branch === branch.name,
+          );
 
+          const staffMap = branchCompleted.reduce<Record<string, typeof branchCompleted>>(
+            (acc, b) => {
+              const key = b.staff_name!;
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(b);
+              return acc;
+            },
+            {},
+          );
+
+          const staffEntries = Object.entries(staffMap).sort(
+            (a, b) => b[1].length - a[1].length,
+          );
+
+          const chartData = staffEntries.map(([name, bks]) => ({
+            name,
+            count: bks.length,
+          }));
+
+          const dateLabel =
+            dateFrom === dateTo
+              ? dateFrom
+              : `${dateFrom} → ${dateTo}`;
+
+          return (
+            <Card key={branch.id}>
+              <CardHeader>
+                <span style={{ fontWeight: 600, fontSize: "14px" }}>
+                  🏆 {branch.name} — Top Staff by Completed Bookings
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--color-sub)" }}>
+                  {dateLabel} · completed
+                </span>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton style={{ height: "160px" }} />
+                ) : staffEntries.length === 0 ? (
+                  <EmptyState icon="🏆" title="No completed bookings in this range" />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <ResponsiveContainer
+                      width="100%"
+                      height={Math.max(120, staffEntries.length * 32)}
+                    >
+                      <BarChart
+                        data={chartData}
+                        layout="vertical"
+                        margin={{ left: 0, right: 16 }}
+                      >
+                        <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <YAxis
+                          type="category"
+                          dataKey="name"
+                          width={120}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <Tooltip
+                          formatter={(v: unknown) => [String(v ?? 0), "Completed"]}
+                          contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                        />
+                        <Bar
+                          dataKey="count"
+                          fill={CHART_COLORS[branchIndex % CHART_COLORS.length]}
+                          radius={[0, 4, 4, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+
+                    <div
+                      style={{
+                        borderTop: "1px solid var(--color-border)",
+                        paddingTop: "12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "12px",
+                      }}
+                    >
+                      {staffEntries.map(([staffName, bks]) => (
+                        <div key={staffName}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: "13px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {staffName}
+                            <span
+                              style={{
+                                marginLeft: "8px",
+                                fontSize: "11px",
+                                color: "var(--color-sub)",
+                                fontWeight: 400,
+                              }}
+                            >
+                              {bks.length} completed
+                            </span>
+                          </div>
+                          {[...bks]
+                            .sort((a, b) => {
+                              if (a.date !== b.date) return a.date.localeCompare(b.date);
+                              return a.time.localeCompare(b.time);
+                            })
+                            .map((b) => (
+                              <div
+                                key={b.id}
+                                style={{
+                                  fontSize: "12px",
+                                  color: "var(--color-rose)",
+                                  marginBottom: "2px",
+                                }}
+                              >
+                                {b.date !== dateFrom || dateFrom !== dateTo
+                                  ? `${b.date} · `
+                                  : ""}
+                                {b.time} – {b.endTime ?? "?"} · {b.service} ·{" "}
+                                {b.customer_name}
+                              </div>
+                            ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Per-branch workload */}

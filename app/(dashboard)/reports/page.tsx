@@ -12,6 +12,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CHART_COLORS, formatCurrency } from "@/lib/utils";
+import { SlidersHorizontal } from "lucide-react";
 
 type Period = "day" | "week" | "month" | "year";
 
@@ -25,6 +26,10 @@ const PERIODS: { id: Period; label: string }[] = [
 export default function ReportsPage() {
   const [period, setPeriod] = useState<Period>("month");
   const [branch, setBranch] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  const [showCustomRange, setShowCustomRange] = useState(false);
+  const [customFrom, setCustomFrom] = useState(today);
+  const [customTo, setCustomTo] = useState(today);
 
   const { data: branches = [] } = useQuery<Branch[]>({
     queryKey: QK.branches(),
@@ -39,9 +44,13 @@ export default function ReportsPage() {
   });
   const currency = general?.currency ?? "Rs.";
 
+  const queryParams = showCustomRange
+    ? { from: customFrom, to: customTo, branch: branch || undefined, status: "completed" }
+    : { period, branch: branch || undefined, status: "completed" };
+
   const { data: analytics, isLoading } = useQuery<AnalyticsResponse>({
-    queryKey: QK.analytics({ period, branch, status: "completed" }),
-    queryFn: () => fetchAnalytics({ period, branch, status: "completed" }),
+    queryKey: QK.analytics(queryParams),
+    queryFn: () => fetchAnalytics(queryParams),
     staleTime: 2 * 60_000,
   });
 
@@ -76,19 +85,36 @@ export default function ReportsPage() {
             <option value="">All Branches</option>
             {branches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
           </select>
-          <div style={{ display: "flex", gap: "4px" }}>
+          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+            <button
+              onClick={() => setShowCustomRange((v) => !v)}
+              title="Custom date range"
+              style={{
+                padding: "6px 10px",
+                borderRadius: "7px",
+                fontSize: "12px",
+                border: showCustomRange ? "1.5px solid var(--color-rose)" : "1.5px solid var(--color-border)",
+                background: showCustomRange ? "var(--color-rose-dim)" : "var(--color-surface)",
+                color: showCustomRange ? "var(--color-rose)" : "var(--color-sub)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <SlidersHorizontal size={14} />
+            </button>
             {PERIODS.map(p => (
               <button
                 key={p.id}
-                onClick={() => setPeriod(p.id)}
+                onClick={() => { setPeriod(p.id); setShowCustomRange(false); }}
                 style={{
                   padding: "7px 14px",
                   borderRadius: "7px",
                   fontSize: "12px",
                   fontWeight: 500,
-                  border: period === p.id ? "1.5px solid var(--color-rose)" : "1.5px solid var(--color-border)",
-                  background: period === p.id ? "var(--color-rose-dim)" : "var(--color-surface)",
-                  color: period === p.id ? "var(--color-rose)" : "var(--color-sub)",
+                  border: !showCustomRange && period === p.id ? "1.5px solid var(--color-rose)" : "1.5px solid var(--color-border)",
+                  background: !showCustomRange && period === p.id ? "var(--color-rose-dim)" : "var(--color-surface)",
+                  color: !showCustomRange && period === p.id ? "var(--color-rose)" : "var(--color-sub)",
                   cursor: "pointer",
                 }}
               >
@@ -98,6 +124,25 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+
+      {/* Custom date range row */}
+      {showCustomRange && (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <input
+            type="date"
+            value={customFrom}
+            onChange={(e) => setCustomFrom(e.target.value)}
+            style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "7px", fontSize: "12px", background: "var(--color-surface)" }}
+          />
+          <span style={{ fontSize: "12px", color: "var(--color-sub)" }}>→</span>
+          <input
+            type="date"
+            value={customTo}
+            onChange={(e) => setCustomTo(e.target.value)}
+            style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "7px", fontSize: "12px", background: "var(--color-surface)" }}
+          />
+        </div>
+      )}
 
       {/* Summary KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "16px" }}>

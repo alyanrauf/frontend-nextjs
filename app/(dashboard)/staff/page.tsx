@@ -88,12 +88,11 @@ export default function StaffPage() {
                 padding: "6px 16px",
                 borderRadius: "8px",
                 fontSize: "13px",
-                fontWeight: 600,
-                border: period === p ? "none" : "1px solid var(--color-border)",
-                background: period === p ? "var(--color-rose)" : "var(--color-surface)",
-                color: period === p ? "#fff" : "var(--color-text)",
+                fontWeight: 500,
+                border: period === p ? "1.5px solid var(--color-rose)" : "1.5px solid var(--color-border)",
+                background: period === p ? "var(--color-rose-dim)" : "var(--color-surface)",
+                color: period === p ? "var(--color-rose)" : "var(--color-sub)",
                 cursor: "pointer",
-                transition: "all 0.15s",
               }}
             >
               {PERIOD_LABELS[p]}

@@ -57,18 +57,14 @@ export default function StaffPage() {
     .slice(0, 10)
     .map(([name, count]) => ({ name, count }));
 
-  // ✅ FIX: "Top by Completed Bookings" = completed status
-  const completedCounts = bookings
-    .filter((b) => b.status === "completed" && b.staff_name)
-    .reduce<Record<string, number>>((acc, b) => {
-      if (b.staff_name) acc[b.staff_name] = (acc[b.staff_name] ?? 0) + 1;
-      return acc;
-    }, {});
-
-  const topByCompleted = Object.entries(completedCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([name, count]) => ({ name, count }));
+  // Completed bookings in date range (for branch-wise chart)
+  const completedInRange = bookings.filter(
+    (b) =>
+      b.status === "completed" &&
+      b.staff_name &&
+      b.date >= dateFrom &&
+      b.date <= dateTo,
+  );
 
   // Workload on selected date
   const dayBookings = bookings.filter(
@@ -166,27 +162,6 @@ export default function StaffPage() {
           </CardContent> 
         </Card> */}
 
-        <Card>
-          <CardHeader>
-            <span style={{ fontWeight: 600, fontSize: "14px" }}>🏆 Top Staff by Completed Bookings</span>
-            <span style={{ fontSize: "11px", color: "var(--color-sub)" }}>All time · completed</span>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? <Skeleton style={{ height: "160px" }} /> :
-             topByCompleted.length === 0 ? (
-              <EmptyState icon="🏆" title="No completed bookings yet" />
-            ) : (
-              <ResponsiveContainer width="100%" height={Math.max(120, topByCompleted.length * 28)}>
-                <BarChart data={topByCompleted} layout="vertical" margin={{ left: 0, right: 16 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: unknown) => [String(v ?? 0), "Completed"]} contentStyle={{ fontSize: "12px", borderRadius: "8px" }} />
-                  <Bar dataKey="count" fill={CHART_COLORS[3]} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Per-branch workload */}

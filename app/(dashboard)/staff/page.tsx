@@ -55,15 +55,22 @@ export default function StaffPage() {
 
   const { dateFrom, dateTo } = getPeriodDates(period);
 
-  // All bookings in period with a staff member assigned
+  // Confirmed + completed bookings in period with a staff member assigned
   const periodBookings = bookings.filter(
-    (b) => b.staff_name && b.date >= dateFrom && b.date <= dateTo,
+    (b) =>
+      b.staff_name &&
+      b.date >= dateFrom &&
+      b.date <= dateTo &&
+      (b.status === "confirmed" || b.status === "completed"),
   );
 
-  // Completed only — for the bar chart
+  // Completed only — for the completed bookings bar chart
   const completedInRange = periodBookings.filter(
     (b) => b.status === "completed",
   );
+
+  // Explicitly requested only — staffRequested is stored as 1 in DB when customer chose the staff
+  const requestedInRange = periodBookings.filter((b) => b.staffRequested);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -124,8 +131,11 @@ export default function StaffPage() {
           const branchPeriod = periodBookings.filter(
             (b) => b.branch === branch.name,
           );
+          const branchRequested = requestedInRange.filter(
+            (b) => b.branch === branch.name,
+          );
 
-          // Group completed bookings by staff for bar chart
+          // Group completed bookings by staff for completed chart
           const completedByStaff = branchCompleted.reduce<Record<string, number>>(
             (acc, b) => {
               const key = b.staff_name!;
@@ -136,6 +146,20 @@ export default function StaffPage() {
           );
 
           const chartData = Object.entries(completedByStaff)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({ name, count }));
+
+          // Group explicitly requested bookings by staff for requested chart
+          const requestedByStaff = branchRequested.reduce<Record<string, number>>(
+            (acc, b) => {
+              const key = b.staff_name!;
+              acc[key] = (acc[key] ?? 0) + 1;
+              return acc;
+            },
+            {},
+          );
+
+          const requestedChartData = Object.entries(requestedByStaff)
             .sort((a, b) => b[1] - a[1])
             .map(([name, count]) => ({ name, count }));
 
@@ -203,6 +227,42 @@ export default function StaffPage() {
                             <Bar
                               dataKey="count"
                               fill={CHART_COLORS[branchIndex % CHART_COLORS.length]}
+                              radius={[0, 4, 4, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
+
+                    {/* Bar chart — most requested staff */}
+                    {requestedChartData.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-sub)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Most Requested
+                        </div>
+                        <ResponsiveContainer
+                          width="100%"
+                          height={Math.max(80, requestedChartData.length * 30)}
+                        >
+                          <BarChart
+                            data={requestedChartData}
+                            layout="vertical"
+                            margin={{ left: 0, right: 16, top: 0, bottom: 0 }}
+                          >
+                            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+                            <YAxis
+                              type="category"
+                              dataKey="name"
+                              width={110}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip
+                              formatter={(v: unknown) => [String(v ?? 0), "Requests"]}
+                              contentStyle={{ fontSize: "12px", borderRadius: "8px" }}
+                            />
+                            <Bar
+                              dataKey="count"
+                              fill={CHART_COLORS[(branchIndex + 2) % CHART_COLORS.length]}
                               radius={[0, 4, 4, 0]}
                             />
                           </BarChart>

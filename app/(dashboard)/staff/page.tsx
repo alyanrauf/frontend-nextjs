@@ -46,7 +46,7 @@ export default function StaffPage() {
   const { data: bookings = [], isLoading } = useQuery<Booking[]>({
     queryKey: QK.bookings({}),
     queryFn: () => fetchBookings(),
-    staleTime: 60_000,
+    staleTime: 0,
   });
 
   const filteredBranches = branchFilter

@@ -5,6 +5,19 @@ const backendUrl = process.env.BACKEND_URL || "http://localhost:3000";
 console.log("🔧 [next.config] BACKEND_URL =", backendUrl);
 
 const nextConfig = {
+    async headers() {
+        return [
+            {
+                // Allow the embedded widget (on any origin) to call /api/chat and /api/availability/*
+                source: "/api/:path*",
+                headers: [
+                    { key: "Access-Control-Allow-Origin", value: "*" },
+                    { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+                    { key: "Access-Control-Allow-Headers", value: "Content-Type" },
+                ],
+            },
+        ];
+    },
     async rewrites() {
         return [
             {
@@ -26,6 +39,11 @@ const nextConfig = {
             {
                 source: "/webhooks/:path*",
                 destination: `${backendUrl}/webhooks/:path*`,
+            },
+            {
+                // Proxy /api/chat and /api/availability/* to Railway
+                source: "/api/:path*",
+                destination: `${backendUrl}/api/:path*`,
             },
         ];
     },

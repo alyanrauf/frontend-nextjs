@@ -106,6 +106,7 @@ function GeneralTab() {
   const [primaryColor, setPrimaryColor] = useState((general as Record<string, string> | undefined)?.primary_color ?? "#8b4a6b");
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [origin, setOrigin] = useState("");
 
   // Keep state in sync once general loads
   const generalBotName = (general as Record<string, string> | undefined)?.bot_name ?? "";
@@ -114,8 +115,8 @@ function GeneralTab() {
   }
 
   const tenantId = general?.tenantId ?? "…";
-  const backendOrigin = process.env.NEXT_PUBLIC_BACKEND_URL ?? "";
-  const widgetUrl = `${backendOrigin}/widget/${tenantId}/widget.js`;
+    useEffect(() => { setOrigin(window.location.origin); }, []);
+  const widgetUrl = `${origin}/widget/${tenantId}/widget.js`;
   const scriptAttrs = [
     `src="${widgetUrl}"`,
     botName.trim() ? `data-bot-name="${botName.trim()}"` : null,

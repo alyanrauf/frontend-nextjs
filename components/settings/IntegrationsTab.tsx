@@ -1,7 +1,7 @@
 // components/settings/IntegrationsTab.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWebhookConfig, fetchGeneral, QK } from "@/lib/queries";
 import type { WebhookConfig } from "@/lib/types";
@@ -21,13 +21,20 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
     staleTime: 5 * 60_000,
   });
 
-  const [wa, setWa] = useState({ 
-    phone_number_id: "", 
-    access_token: "", 
-    verify_token: "" 
+  const [wa, setWa] = useState({
+    phone_number_id: "",
+    access_token: "",
+    verify_token: ""
   });
   const [ig, setIg] = useState({ page_access_token: "", verify_token: "" });
   const [fb, setFb] = useState({ page_access_token: "", verify_token: "" });
+
+  // Pre-populate wa_phone_number_id from fetched config (it's the only non-secret field returned)
+  useEffect(() => {
+    if (config?.wa_phone_number_id) {
+      setWa(prev => ({ ...prev, phone_number_id: config.wa_phone_number_id }));
+    }
+  }, [config?.wa_phone_number_id]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -42,7 +49,8 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
       }),
     onSuccess: () => {
       toast.success("Integrations saved");
-      setWa({ phone_number_id: "", access_token: "", verify_token: "" });
+      // Only clear the secret fields (tokens) — phone_number_id stays visible
+      setWa(prev => ({ ...prev, access_token: "", verify_token: "" }));
       setIg({ page_access_token: "", verify_token: "" });
       setFb({ page_access_token: "", verify_token: "" });
       qc.invalidateQueries({ queryKey: QK.webhookConfig() });
@@ -124,14 +132,14 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
                 label="Access Token"
                 value={wa.access_token}
                 onChange={(v) => setWa({ ...wa, access_token: v })}
-                placeholder="Enter Access Token"
+                placeholder={config?.has_whatsapp ? "Leave blank to keep existing token" : "Enter Access Token"}
                 isPassword
               />
               <CredentialField
                 label="Verify Token"
                 value={wa.verify_token}
                 onChange={(v) => setWa({ ...wa, verify_token: v })}
-                placeholder="e.g., my-salon-verify-123"
+                placeholder={config?.has_whatsapp ? "Leave blank to keep existing token" : "e.g., my-salon-verify-123"}
                 helpText="Your custom verification token - must match what you set in Meta Developer Console"
               />
             </div>
@@ -198,14 +206,14 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
                   label="Page Access Token"
                   value={ig.page_access_token}
                   onChange={(v) => setIg({ ...ig, page_access_token: v })}
-                  placeholder="Enter Page Access Token"
+                  placeholder={config?.has_instagram ? "Leave blank to keep existing token" : "Enter Page Access Token"}
                   isPassword
                 />
                 <CredentialField
                   label="Verify Token"
                   value={ig.verify_token}
                   onChange={(v) => setIg({ ...ig, verify_token: v })}
-                  placeholder="e.g., my-salon-ig-verify"
+                  placeholder={config?.has_instagram ? "Leave blank to keep existing token" : "e.g., my-salon-ig-verify"}
                   helpText="Your custom verification token - must match what you set in Meta Developer Console"
                 />
               </div>
@@ -269,14 +277,14 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
                   label="Page Access Token"
                   value={fb.page_access_token}
                   onChange={(v) => setFb({ ...fb, page_access_token: v })}
-                  placeholder="Enter Page Access Token"
+                  placeholder={config?.has_facebook ? "Leave blank to keep existing token" : "Enter Page Access Token"}
                   isPassword
                 />
                 <CredentialField
                   label="Verify Token"
                   value={fb.verify_token}
                   onChange={(v) => setFb({ ...fb, verify_token: v })}
-                  placeholder="e.g., my-salon-fb-verify"
+                  placeholder={config?.has_facebook ? "Leave blank to keep existing token" : "e.g., my-salon-fb-verify"}
                   helpText="Your custom verification token - must match what you set in Meta Developer Console"
                 />
               </div>

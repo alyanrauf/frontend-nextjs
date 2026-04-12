@@ -106,7 +106,8 @@ function GeneralTab() {
   const [primaryColor, setPrimaryColor] = useState((general as Record<string, string> | undefined)?.primary_color ?? "#8b4a6b");
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [origin] = useState(() => typeof window !== "undefined" ? window.location.origin : "");
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
   // Keep state in sync once general loads
   const generalBotName = (general as Record<string, string> | undefined)?.bot_name ?? "";

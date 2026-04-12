@@ -3,15 +3,25 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchWebhookConfig, fetchGeneral, QK } from "@/lib/queries";
+import { fetchWebhookConfig, QK } from "@/lib/queries";
 import type { WebhookConfig } from "@/lib/types";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/Badge";
 
+function ConnectionBadge({ hasToken, verified }: { hasToken: boolean; verified: boolean }) {
+  if (verified) return <Badge status="active" label="Active" />;
+  if (hasToken) return <Badge status="pending" label="Token saved" />;
+  return <Badge status="inactive" label="Not configured" />;
+}
+
 interface IntegrationsTabProps {
   tenantId: string;
 }
+
+const EMPTY_WA = { phone_number_id: "", access_token: "", verify_token: "" };
+const EMPTY_IG = { page_access_token: "", verify_token: "" };
+const EMPTY_FB = { page_access_token: "", verify_token: "" };
 
 export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
   const qc = useQueryClient();
@@ -21,20 +31,27 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
     staleTime: 5 * 60_000,
   });
 
-  const [wa, setWa] = useState({
-    phone_number_id: "",
-    access_token: "",
-    verify_token: ""
-  });
-  const [ig, setIg] = useState({ page_access_token: "", verify_token: "" });
-  const [fb, setFb] = useState({ page_access_token: "", verify_token: "" });
+  const [wa, setWa] = useState(EMPTY_WA);
+  const [ig, setIg] = useState(EMPTY_IG);
+  const [fb, setFb] = useState(EMPTY_FB);
 
-  // Pre-populate wa_phone_number_id from fetched config (it's the only non-secret field returned)
+  // edit-mode per card (auto-open when not yet configured)
+  const [editingWa, setEditingWa] = useState(false);
+  const [editingIg, setEditingIg] = useState(false);
+  const [editingFb, setEditingFb] = useState(false);
+
+  // Pre-populate wa_phone_number_id (only non-secret field returned by API)
   useEffect(() => {
     if (config?.wa_phone_number_id) {
       setWa(prev => ({ ...prev, phone_number_id: config.wa_phone_number_id }));
     }
   }, [config?.wa_phone_number_id]);
+
+  function cancelEdit(channel: "wa" | "ig" | "fb") {
+    if (channel === "wa") { setWa(prev => ({ ...prev, access_token: "", verify_token: "" })); setEditingWa(false); }
+    if (channel === "ig") { setIg(EMPTY_IG); setEditingIg(false); }
+    if (channel === "fb") { setFb(EMPTY_FB); setEditingFb(false); }
+  }
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -49,10 +66,12 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
       }),
     onSuccess: () => {
       toast.success("Integrations saved");
-      // Only clear the secret fields (tokens) — phone_number_id stays visible
       setWa(prev => ({ ...prev, access_token: "", verify_token: "" }));
-      setIg({ page_access_token: "", verify_token: "" });
-      setFb({ page_access_token: "", verify_token: "" });
+      setIg(EMPTY_IG);
+      setFb(EMPTY_FB);
+      setEditingWa(false);
+      setEditingIg(false);
+      setEditingFb(false);
       qc.invalidateQueries({ queryKey: QK.webhookConfig() });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -66,234 +85,137 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
         Connect your salon&apos;s WhatsApp, Instagram, and Facebook accounts so customers can book through messaging apps.
       </p>
 
-      {/* Two-column layout for better space utilization */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-        
-        {/* LEFT COLUMN - WhatsApp */}
-        <div
-          style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-md)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "16px 20px",
-              background: "#fafafa",
-              borderBottom: "1px solid var(--color-border)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
+
+        {/* ── WhatsApp ── */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "20px" }}>💬</span>
               <h4 style={{ fontWeight: 600, margin: 0 }}>WhatsApp</h4>
             </div>
-            <Badge 
-              status={config?.has_whatsapp ? "active" : "inactive"} 
-              label={config?.has_whatsapp ? "Connected" : "Not connected"} 
-            />
+            <ConnectionBadge hasToken={!!config?.has_whatsapp} verified={!!config?.wa_verified} />
           </div>
-          
-          <div style={{ padding: "20px" }}>
-            {/* Webhook URL - Always visible with actual tenant ID */}
-            <div
-              style={{
-                background: "var(--color-canvas)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-md)",
-                padding: "16px",
-                marginBottom: "20px",
-              }}
-            >
-              <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "8px", color: "var(--color-sub)" }}>
-                🔗 Webhook URL
-              </label>
-              <WebhookUrlDisplay 
-                url={`${backendOrigin}/webhooks/${tenantId}/whatsapp`}
-              />
-              <p style={{ fontSize: "11px", color: "var(--color-sub)", marginTop: "8px" }}>
-                Paste this URL in your Meta Developer Console webhook configuration.
-              </p>
-            </div>
 
-            {/* Credentials */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <CredentialField
-                label="Phone Number ID"
-                value={wa.phone_number_id}
-                onChange={(v) => setWa({ ...wa, phone_number_id: v })}
-                placeholder="Enter Phone Number ID"
-              />
-              <CredentialField
-                label="Access Token"
-                value={wa.access_token}
-                onChange={(v) => setWa({ ...wa, access_token: v })}
-                placeholder={config?.has_whatsapp ? "Leave blank to keep existing token" : "Enter Access Token"}
-                isPassword
-              />
-              <CredentialField
-                label="Verify Token"
-                value={wa.verify_token}
-                onChange={(v) => setWa({ ...wa, verify_token: v })}
-                placeholder={config?.has_whatsapp ? "Leave blank to keep existing token" : "e.g., my-salon-verify-123"}
-                helpText="Your custom verification token - must match what you set in Meta Developer Console"
-              />
+          <div style={{ padding: "20px" }}>
+            <WebhookUrlBox url={`${backendOrigin}/webhooks/${tenantId}/whatsapp`} />
+
+            <Field
+              label="Phone Number ID"
+              value={wa.phone_number_id}
+              onChange={v => setWa(p => ({ ...p, phone_number_id: v }))}
+              placeholder="Enter Phone Number ID"
+            />
+
+            <div style={{ marginTop: "16px" }}>
+              <CredentialSection
+                isSaved={!!config?.has_whatsapp}
+                isEditing={editingWa}
+                onEdit={() => setEditingWa(true)}
+                onCancel={() => cancelEdit("wa")}
+              >
+                <Field
+                  label="Access Token"
+                  value={wa.access_token}
+                  onChange={v => setWa(p => ({ ...p, access_token: v }))}
+                  placeholder="Enter new Access Token"
+                  isPassword
+                />
+                <Field
+                  label="Verify Token"
+                  value={wa.verify_token}
+                  onChange={v => setWa(p => ({ ...p, verify_token: v }))}
+                  placeholder="Enter new Verify Token"
+                  helpText="Must match what you set in Meta Developer Console"
+                />
+              </CredentialSection>
             </div>
           </div>
         </div>
 
-        {/* RIGHT COLUMN - Instagram & Facebook */}
+        {/* ── Right column ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          
-          {/* Instagram Card */}
-          <div
-            style={{
-              background: "var(--color-surface)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                padding: "16px 20px",
-                background: "#fafafa",
-                borderBottom: "1px solid var(--color-border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
+
+          {/* Instagram */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "20px" }}>📸</span>
                 <h4 style={{ fontWeight: 600, margin: 0 }}>Instagram</h4>
               </div>
-              <Badge 
-                status={config?.has_instagram ? "active" : "inactive"} 
-                label={config?.has_instagram ? "Connected" : "Not connected"} 
-              />
+              <ConnectionBadge hasToken={!!config?.has_instagram} verified={!!config?.ig_verified} />
             </div>
-            
-            <div style={{ padding: "20px" }}>
-              {/* Webhook URL - Always visible with actual tenant ID */}
-              <div
-                style={{
-                  background: "var(--color-canvas)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "16px",
-                  marginBottom: "20px",
-                }}
-              >
-                <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "8px", color: "var(--color-sub)" }}>
-                  🔗 Webhook URL
-                </label>
-                <WebhookUrlDisplay 
-                  url={`${backendOrigin}/webhooks/${tenantId}/instagram`}
-                />
-                <p style={{ fontSize: "11px", color: "var(--color-sub)", marginTop: "8px" }}>
-                  Paste this URL in your Meta Developer Console webhook configuration.
-                </p>
-              </div>
 
-              {/* Credentials */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <CredentialField
-                  label="Page Access Token"
-                  value={ig.page_access_token}
-                  onChange={(v) => setIg({ ...ig, page_access_token: v })}
-                  placeholder={config?.has_instagram ? "Leave blank to keep existing token" : "Enter Page Access Token"}
-                  isPassword
-                />
-                <CredentialField
-                  label="Verify Token"
-                  value={ig.verify_token}
-                  onChange={(v) => setIg({ ...ig, verify_token: v })}
-                  placeholder={config?.has_instagram ? "Leave blank to keep existing token" : "e.g., my-salon-ig-verify"}
-                  helpText="Your custom verification token - must match what you set in Meta Developer Console"
-                />
+            <div style={{ padding: "20px" }}>
+              <WebhookUrlBox url={`${backendOrigin}/webhooks/${tenantId}/instagram`} />
+
+              <div style={{ marginTop: "16px" }}>
+                <CredentialSection
+                  isSaved={!!config?.has_instagram}
+                  isEditing={editingIg}
+                  onEdit={() => setEditingIg(true)}
+                  onCancel={() => cancelEdit("ig")}
+                >
+                  <Field
+                    label="Page Access Token"
+                    value={ig.page_access_token}
+                    onChange={v => setIg(p => ({ ...p, page_access_token: v }))}
+                    placeholder="Enter new Page Access Token"
+                    isPassword
+                  />
+                  <Field
+                    label="Verify Token"
+                    value={ig.verify_token}
+                    onChange={v => setIg(p => ({ ...p, verify_token: v }))}
+                    placeholder="Enter new Verify Token"
+                    helpText="Must match what you set in Meta Developer Console"
+                  />
+                </CredentialSection>
               </div>
             </div>
           </div>
 
-          {/* Facebook Card */}
-          <div
-            style={{
-              background: "var(--color-surface)",
-              border: "1px solid var(--color-border)",
-              borderRadius: "var(--radius-md)",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                padding: "16px 20px",
-                background: "#fafafa",
-                borderBottom: "1px solid var(--color-border)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
+          {/* Facebook */}
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "20px" }}>👍</span>
                 <h4 style={{ fontWeight: 600, margin: 0 }}>Facebook Messenger</h4>
               </div>
-              <Badge 
-                status={config?.has_facebook ? "active" : "inactive"} 
-                label={config?.has_facebook ? "Connected" : "Not connected"} 
-              />
+              <ConnectionBadge hasToken={!!config?.has_facebook} verified={!!config?.fb_verified} />
             </div>
-            
-            <div style={{ padding: "20px" }}>
-              {/* Webhook URL - Always visible with actual tenant ID */}
-              <div
-                style={{
-                  background: "var(--color-canvas)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "16px",
-                  marginBottom: "20px",
-                }}
-              >
-                <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "8px", color: "var(--color-sub)" }}>
-                  🔗 Webhook URL
-                </label>
-                <WebhookUrlDisplay 
-                  url={`${backendOrigin}/webhooks/${tenantId}/facebook`}
-                />
-                <p style={{ fontSize: "11px", color: "var(--color-sub)", marginTop: "8px" }}>
-                  Paste this URL in your Meta Developer Console webhook configuration.
-                </p>
-              </div>
 
-              {/* Credentials */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <CredentialField
-                  label="Page Access Token"
-                  value={fb.page_access_token}
-                  onChange={(v) => setFb({ ...fb, page_access_token: v })}
-                  placeholder={config?.has_facebook ? "Leave blank to keep existing token" : "Enter Page Access Token"}
-                  isPassword
-                />
-                <CredentialField
-                  label="Verify Token"
-                  value={fb.verify_token}
-                  onChange={(v) => setFb({ ...fb, verify_token: v })}
-                  placeholder={config?.has_facebook ? "Leave blank to keep existing token" : "e.g., my-salon-fb-verify"}
-                  helpText="Your custom verification token - must match what you set in Meta Developer Console"
-                />
+            <div style={{ padding: "20px" }}>
+              <WebhookUrlBox url={`${backendOrigin}/webhooks/${tenantId}/facebook`} />
+
+              <div style={{ marginTop: "16px" }}>
+                <CredentialSection
+                  isSaved={!!config?.has_facebook}
+                  isEditing={editingFb}
+                  onEdit={() => setEditingFb(true)}
+                  onCancel={() => cancelEdit("fb")}
+                >
+                  <Field
+                    label="Page Access Token"
+                    value={fb.page_access_token}
+                    onChange={v => setFb(p => ({ ...p, page_access_token: v }))}
+                    placeholder="Enter new Page Access Token"
+                    isPassword
+                  />
+                  <Field
+                    label="Verify Token"
+                    value={fb.verify_token}
+                    onChange={v => setFb(p => ({ ...p, verify_token: v }))}
+                    placeholder="Enter new Verify Token"
+                    helpText="Must match what you set in Meta Developer Console"
+                  />
+                </CredentialSection>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Save Button */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
         <button
           onClick={() => saveMutation.mutate()}
@@ -307,8 +229,75 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
   );
 }
 
-// Sub-component: Webhook URL Display with Copy Button
-function WebhookUrlDisplay({ url }: { url: string }) {
+// ── CredentialSection ─────────────────────────────────────────────────────────
+// When saved and NOT editing: shows a "credentials saved" row + Edit button.
+// When editing or not yet saved: shows children (the fields) + optional Cancel.
+function CredentialSection({
+  isSaved,
+  isEditing,
+  onEdit,
+  onCancel,
+  children,
+}: {
+  isSaved: boolean;
+  isEditing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  children: React.ReactNode;
+}) {
+  if (isSaved && !isEditing) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 14px",
+          background: "#f0fdf4",
+          border: "1.5px solid #bbf7d0",
+          borderRadius: "8px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "16px" }}>🔒</span>
+          <div>
+            <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#15803d" }}>Credentials saved</p>
+            <p style={{ margin: 0, fontSize: "11px", color: "#16a34a" }}>Tokens are stored securely</p>
+          </div>
+        </div>
+        <button onClick={onEdit} style={editBtn}>
+          Edit credentials
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {isSaved && (
+        <div style={{
+          padding: "8px 12px",
+          background: "#fefce8",
+          border: "1px solid #fde047",
+          borderRadius: "6px",
+          fontSize: "12px",
+          color: "#854d0e",
+        }}>
+          Leave a field blank to keep the existing value. Only filled fields will be updated.
+        </div>
+      )}
+      {children}
+      {isSaved && (
+        <button onClick={onCancel} style={cancelBtn}>
+          Cancel
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── WebhookUrlBox ─────────────────────────────────────────────────────────────
+function WebhookUrlBox({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
 
   function copyUrl() {
@@ -319,8 +308,17 @@ function WebhookUrlDisplay({ url }: { url: string }) {
   }
 
   return (
-    <div
-      style={{
+    <div style={{
+      background: "var(--color-canvas)",
+      border: "1px solid var(--color-border)",
+      borderRadius: "var(--radius-md)",
+      padding: "16px",
+      marginBottom: "16px",
+    }}>
+      <label style={{ fontSize: "12px", fontWeight: 600, display: "block", marginBottom: "8px", color: "var(--color-sub)" }}>
+        🔗 Webhook URL
+      </label>
+      <div style={{
         display: "flex",
         alignItems: "center",
         gap: "8px",
@@ -328,22 +326,11 @@ function WebhookUrlDisplay({ url }: { url: string }) {
         border: "1px solid var(--color-border)",
         borderRadius: "8px",
         padding: "10px 12px",
-      }}
-    >
-      <code
-        style={{
-          fontSize: "12px",
-          color: "#3b82f6",  // Changed from "var(--color-rose)" to blue
-          wordBreak: "break-all",
-          flex: 1,
-          fontFamily: "monospace",
-        }}
-      >
-        {url}
-      </code>
-      <button
-        onClick={copyUrl}
-        style={{
+      }}>
+        <code style={{ fontSize: "12px", color: "#3b82f6", wordBreak: "break-all", flex: 1, fontFamily: "monospace" }}>
+          {url}
+        </code>
+        <button onClick={copyUrl} style={{
           padding: "4px 12px",
           background: copied ? "#16a34a" : "var(--color-rose)",
           color: "#fff",
@@ -353,27 +340,25 @@ function WebhookUrlDisplay({ url }: { url: string }) {
           fontWeight: 600,
           cursor: "pointer",
           whiteSpace: "nowrap",
-        }}
-      >
-        {copied ? "Copied!" : "Copy"}
-      </button>
+        }}>
+          {copied ? "Copied!" : "Copy"}
+        </button>
+      </div>
+      <p style={{ fontSize: "11px", color: "var(--color-sub)", marginTop: "8px" }}>
+        Paste this URL in your Meta Developer Console webhook configuration.
+      </p>
     </div>
   );
 }
 
-// Sub-component: Credential Field
-function CredentialField({ 
-  label, 
-  value, 
-  onChange, 
-  placeholder, 
-  isPassword,
-  helpText
-}: { 
-  label: string; 
-  value: string; 
-  onChange: (v: string) => void; 
-  placeholder?: string; 
+// ── Field ─────────────────────────────────────────────────────────────────────
+function Field({
+  label, value, onChange, placeholder, isPassword, helpText,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
   isPassword?: boolean;
   helpText?: string;
 }) {
@@ -385,7 +370,7 @@ function CredentialField({
       <input
         type={isPassword ? "password" : "text"}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete="off"
         style={{
@@ -398,17 +383,32 @@ function CredentialField({
           outline: "none",
           boxSizing: "border-box",
         }}
-        onFocus={(e) => e.target.style.borderColor = "var(--color-rose)"}
-        onBlur={(e) => e.target.style.borderColor = "var(--color-border)"}
+        onFocus={e => (e.target.style.borderColor = "var(--color-rose)")}
+        onBlur={e => (e.target.style.borderColor = "var(--color-border)")}
       />
       {helpText && (
-        <p style={{ fontSize: "11px", color: "var(--color-sub)", marginTop: "4px" }}>
-          {helpText}
-        </p>
+        <p style={{ fontSize: "11px", color: "var(--color-sub)", marginTop: "4px" }}>{helpText}</p>
       )}
     </div>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+const cardStyle: React.CSSProperties = {
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "var(--radius-md)",
+  overflow: "hidden",
+};
+
+const cardHeaderStyle: React.CSSProperties = {
+  padding: "16px 20px",
+  background: "#fafafa",
+  borderBottom: "1px solid var(--color-border)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+};
 
 const primaryBtn: React.CSSProperties = {
   padding: "9px 18px",
@@ -418,5 +418,28 @@ const primaryBtn: React.CSSProperties = {
   borderRadius: "8px",
   fontSize: "13px",
   fontWeight: 600,
+  cursor: "pointer",
+};
+
+const editBtn: React.CSSProperties = {
+  padding: "6px 14px",
+  background: "#fff",
+  color: "#15803d",
+  border: "1.5px solid #86efac",
+  borderRadius: "6px",
+  fontSize: "12px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const cancelBtn: React.CSSProperties = {
+  alignSelf: "flex-start",
+  padding: "6px 14px",
+  background: "transparent",
+  color: "var(--color-sub)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "6px",
+  fontSize: "12px",
+  fontWeight: 500,
   cursor: "pointer",
 };

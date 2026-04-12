@@ -101,6 +101,9 @@ export interface WebhookConfig {
   has_whatsapp: boolean;
   has_instagram: boolean;
   has_facebook: boolean;
+  wa_verified: boolean;
+  ig_verified: boolean;
+  fb_verified: boolean;
   wa_phone_number_id: string;
   webhook_urls: {
     whatsapp: string;

@@ -106,7 +106,7 @@ function GeneralTab() {
   const [primaryColor, setPrimaryColor] = useState((general as Record<string, string> | undefined)?.primary_color ?? "#8b4a6b");
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [origin, setOrigin] = useState("");
+  const [origin] = useState(() => typeof window !== "undefined" ? window.location.origin : "");
 
   // Keep state in sync once general loads
   const generalBotName = (general as Record<string, string> | undefined)?.bot_name ?? "";
@@ -115,7 +115,6 @@ function GeneralTab() {
   }
 
   const tenantId = general?.tenantId ?? "…";
-    useEffect(() => { setOrigin(window.location.origin); }, []);
   const widgetUrl = `${origin}/widget/${tenantId}/widget.js`;
   const scriptAttrs = [
     `src="${widgetUrl}"`,

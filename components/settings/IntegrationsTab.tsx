@@ -23,6 +23,8 @@ const EMPTY_WA = { phone_number_id: "", access_token: "", verify_token: "" };
 const EMPTY_IG = { page_access_token: "", verify_token: "" };
 const EMPTY_FB = { page_access_token: "", verify_token: "" };
 
+const MASKED = "••••••••••••";
+
 export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
   const qc = useQueryClient();
   const { data: config } = useQuery<WebhookConfig>({
@@ -35,12 +37,11 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
   const [ig, setIg] = useState(EMPTY_IG);
   const [fb, setFb] = useState(EMPTY_FB);
 
-  // edit-mode per card (auto-open when not yet configured)
   const [editingWa, setEditingWa] = useState(false);
   const [editingIg, setEditingIg] = useState(false);
   const [editingFb, setEditingFb] = useState(false);
 
-  // Pre-populate wa_phone_number_id (only non-secret field returned by API)
+  // Pre-populate phone_number_id when config loads
   useEffect(() => {
     if (config?.wa_phone_number_id) {
       setWa(prev => ({ ...prev, phone_number_id: config.wa_phone_number_id }));
@@ -48,7 +49,10 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
   }, [config?.wa_phone_number_id]);
 
   function cancelEdit(channel: "wa" | "ig" | "fb") {
-    if (channel === "wa") { setWa(prev => ({ ...prev, access_token: "", verify_token: "" })); setEditingWa(false); }
+    if (channel === "wa") {
+      setWa({ phone_number_id: config?.wa_phone_number_id || "", access_token: "", verify_token: "" });
+      setEditingWa(false);
+    }
     if (channel === "ig") { setIg(EMPTY_IG); setEditingIg(false); }
     if (channel === "fb") { setFb(EMPTY_FB); setEditingFb(false); }
   }
@@ -77,7 +81,35 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (channel: "whatsapp" | "instagram" | "facebook") =>
+      api.delete(`/salon-admin/api/webhook-config/${channel}`),
+    onSuccess: (_: unknown, channel: "whatsapp" | "instagram" | "facebook") => {
+      const label = channel === "whatsapp" ? "WhatsApp" : channel === "instagram" ? "Instagram" : "Facebook";
+      toast.success(`${label} integration removed`);
+      if (channel === "whatsapp") { setWa(EMPTY_WA); setEditingWa(false); }
+      if (channel === "instagram") { setIg(EMPTY_IG); setEditingIg(false); }
+      if (channel === "facebook") { setFb(EMPTY_FB); setEditingFb(false); }
+      qc.invalidateQueries({ queryKey: QK.webhookConfig() });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const backendOrigin = typeof window !== "undefined" ? window.location.origin : "";
+
+  const waSavedFields = [
+    { label: "Phone Number ID", value: config?.wa_phone_number_id || "—" },
+    { label: "Access Token", value: MASKED },
+    { label: "Verify Token", value: MASKED },
+  ];
+  const igSavedFields = [
+    { label: "Page Access Token", value: MASKED },
+    { label: "Verify Token", value: MASKED },
+  ];
+  const fbSavedFields = [
+    { label: "Page Access Token", value: MASKED },
+    { label: "Verify Token", value: MASKED },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -100,36 +132,36 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
           <div style={{ padding: "20px" }}>
             <WebhookUrlBox url={`${backendOrigin}/webhooks/${tenantId}/whatsapp`} />
 
-            <Field
-              label="Phone Number ID"
-              value={wa.phone_number_id}
-              onChange={v => setWa(p => ({ ...p, phone_number_id: v }))}
-              placeholder="Enter Phone Number ID"
-            />
-
-            <div style={{ marginTop: "16px" }}>
-              <CredentialSection
-                isSaved={!!config?.has_whatsapp}
-                isEditing={editingWa}
-                onEdit={() => setEditingWa(true)}
-                onCancel={() => cancelEdit("wa")}
-              >
-                <Field
-                  label="Access Token"
-                  value={wa.access_token}
-                  onChange={v => setWa(p => ({ ...p, access_token: v }))}
-                  placeholder="Enter new Access Token"
-                  isPassword
-                />
-                <Field
-                  label="Verify Token"
-                  value={wa.verify_token}
-                  onChange={v => setWa(p => ({ ...p, verify_token: v }))}
-                  placeholder="Enter new Verify Token"
-                  helpText="Must match what you set in Meta Developer Console"
-                />
-              </CredentialSection>
-            </div>
+            <CredentialSection
+              isSaved={!!config?.has_whatsapp}
+              isEditing={editingWa}
+              onEdit={() => setEditingWa(true)}
+              onCancel={() => cancelEdit("wa")}
+              onDelete={() => deleteMutation.mutate("whatsapp")}
+              isDeleting={deleteMutation.isPending}
+              savedFields={waSavedFields}
+            >
+              <Field
+                label="Phone Number ID"
+                value={wa.phone_number_id}
+                onChange={v => setWa(p => ({ ...p, phone_number_id: v }))}
+                placeholder="Enter Phone Number ID"
+              />
+              <Field
+                label="Access Token"
+                value={wa.access_token}
+                onChange={v => setWa(p => ({ ...p, access_token: v }))}
+                placeholder="Enter new Access Token"
+                isPassword
+              />
+              <Field
+                label="Verify Token"
+                value={wa.verify_token}
+                onChange={v => setWa(p => ({ ...p, verify_token: v }))}
+                placeholder="Enter new Verify Token"
+                helpText="Must match what you set in Meta Developer Console"
+              />
+            </CredentialSection>
           </div>
         </div>
 
@@ -149,29 +181,30 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
             <div style={{ padding: "20px" }}>
               <WebhookUrlBox url={`${backendOrigin}/webhooks/${tenantId}/instagram`} />
 
-              <div style={{ marginTop: "16px" }}>
-                <CredentialSection
-                  isSaved={!!config?.has_instagram}
-                  isEditing={editingIg}
-                  onEdit={() => setEditingIg(true)}
-                  onCancel={() => cancelEdit("ig")}
-                >
-                  <Field
-                    label="Page Access Token"
-                    value={ig.page_access_token}
-                    onChange={v => setIg(p => ({ ...p, page_access_token: v }))}
-                    placeholder="Enter new Page Access Token"
-                    isPassword
-                  />
-                  <Field
-                    label="Verify Token"
-                    value={ig.verify_token}
-                    onChange={v => setIg(p => ({ ...p, verify_token: v }))}
-                    placeholder="Enter new Verify Token"
-                    helpText="Must match what you set in Meta Developer Console"
-                  />
-                </CredentialSection>
-              </div>
+              <CredentialSection
+                isSaved={!!config?.has_instagram}
+                isEditing={editingIg}
+                onEdit={() => setEditingIg(true)}
+                onCancel={() => cancelEdit("ig")}
+                onDelete={() => deleteMutation.mutate("instagram")}
+                isDeleting={deleteMutation.isPending}
+                savedFields={igSavedFields}
+              >
+                <Field
+                  label="Page Access Token"
+                  value={ig.page_access_token}
+                  onChange={v => setIg(p => ({ ...p, page_access_token: v }))}
+                  placeholder="Enter new Page Access Token"
+                  isPassword
+                />
+                <Field
+                  label="Verify Token"
+                  value={ig.verify_token}
+                  onChange={v => setIg(p => ({ ...p, verify_token: v }))}
+                  placeholder="Enter new Verify Token"
+                  helpText="Must match what you set in Meta Developer Console"
+                />
+              </CredentialSection>
             </div>
           </div>
 
@@ -188,29 +221,30 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
             <div style={{ padding: "20px" }}>
               <WebhookUrlBox url={`${backendOrigin}/webhooks/${tenantId}/facebook`} />
 
-              <div style={{ marginTop: "16px" }}>
-                <CredentialSection
-                  isSaved={!!config?.has_facebook}
-                  isEditing={editingFb}
-                  onEdit={() => setEditingFb(true)}
-                  onCancel={() => cancelEdit("fb")}
-                >
-                  <Field
-                    label="Page Access Token"
-                    value={fb.page_access_token}
-                    onChange={v => setFb(p => ({ ...p, page_access_token: v }))}
-                    placeholder="Enter new Page Access Token"
-                    isPassword
-                  />
-                  <Field
-                    label="Verify Token"
-                    value={fb.verify_token}
-                    onChange={v => setFb(p => ({ ...p, verify_token: v }))}
-                    placeholder="Enter new Verify Token"
-                    helpText="Must match what you set in Meta Developer Console"
-                  />
-                </CredentialSection>
-              </div>
+              <CredentialSection
+                isSaved={!!config?.has_facebook}
+                isEditing={editingFb}
+                onEdit={() => setEditingFb(true)}
+                onCancel={() => cancelEdit("fb")}
+                onDelete={() => deleteMutation.mutate("facebook")}
+                isDeleting={deleteMutation.isPending}
+                savedFields={fbSavedFields}
+              >
+                <Field
+                  label="Page Access Token"
+                  value={fb.page_access_token}
+                  onChange={v => setFb(p => ({ ...p, page_access_token: v }))}
+                  placeholder="Enter new Page Access Token"
+                  isPassword
+                />
+                <Field
+                  label="Verify Token"
+                  value={fb.verify_token}
+                  onChange={v => setFb(p => ({ ...p, verify_token: v }))}
+                  placeholder="Enter new Verify Token"
+                  helpText="Must match what you set in Meta Developer Console"
+                />
+              </CredentialSection>
             </div>
           </div>
         </div>
@@ -230,44 +264,69 @@ export function IntegrationsTab({ tenantId }: IntegrationsTabProps) {
 }
 
 // ── CredentialSection ─────────────────────────────────────────────────────────
-// When saved and NOT editing: shows a "credentials saved" row + Edit button.
-// When editing or not yet saved: shows children (the fields) + optional Cancel.
 function CredentialSection({
   isSaved,
   isEditing,
   onEdit,
   onCancel,
+  onDelete,
+  isDeleting,
+  savedFields,
   children,
 }: {
   isSaved: boolean;
   isEditing: boolean;
   onEdit: () => void;
   onCancel: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+  savedFields: { label: string; value: string }[];
   children: React.ReactNode;
 }) {
   if (isSaved && !isEditing) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 14px",
-          background: "#f0fdf4",
-          border: "1.5px solid #bbf7d0",
-          borderRadius: "8px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "16px" }}>🔒</span>
-          <div>
-            <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#15803d" }}>Credentials saved</p>
-            <p style={{ margin: 0, fontSize: "11px", color: "#16a34a" }}>Tokens are stored securely</p>
-          </div>
+      <div style={{
+        padding: "14px 16px",
+        background: "#f0fdf4",
+        border: "1.5px solid #bbf7d0",
+        borderRadius: "8px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+          <span style={{ fontSize: "15px" }}>🔒</span>
+          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#15803d" }}>Credentials saved</p>
         </div>
-        <button onClick={onEdit} style={editBtn}>
-          Edit credentials
-        </button>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "14px" }}>
+          {savedFields.map(f => (
+            <div key={f.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", color: "#166534", fontWeight: 500 }}>{f.label}</span>
+              <span style={{
+                fontSize: "12px",
+                fontFamily: "monospace",
+                color: "#15803d",
+                background: "#dcfce7",
+                padding: "2px 8px",
+                borderRadius: "4px",
+                letterSpacing: f.value.startsWith("•") ? "2px" : "normal",
+              }}>
+                {f.value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={onEdit} style={editBtn}>
+            Edit credentials
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={isDeleting}
+            style={deleteBtn}
+          >
+            {isDeleting ? "Removing…" : "Delete"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -426,6 +485,17 @@ const editBtn: React.CSSProperties = {
   background: "#fff",
   color: "#15803d",
   border: "1.5px solid #86efac",
+  borderRadius: "6px",
+  fontSize: "12px",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const deleteBtn: React.CSSProperties = {
+  padding: "6px 14px",
+  background: "#fff",
+  color: "#dc2626",
+  border: "1.5px solid #fca5a5",
   borderRadius: "6px",
   fontSize: "12px",
   fontWeight: 600,
